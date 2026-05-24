@@ -1,11 +1,17 @@
 import { useState } from 'react'
+import { supabase } from '../services/supabase'
 
 function Movimentacoes({
   produtos,
-  setProdutos,
   movimentacoes,
-  setMovimentacoes,
+  empresaAtiva,
+  usuarioLogado,
+  carregandoMovimentacoes,
+  carregarProdutos,
+  carregarMovimentacoes,
 }) {
+  const [salvando, setSalvando] = useState(false)
+
   const [novaMovimentacao, setNovaMovimentacao] = useState({
     produtoId: '',
     tipo: 'entrada',
@@ -23,7 +29,12 @@ function Movimentacoes({
     })
   }
 
-  function salvarMovimentacao() {
+  async function salvarMovimentacao() {
+    if (!empresaAtiva?.id) {
+      alert('Selecione uma empresa antes de registrar movimentações.')
+      return
+    }
+
     if (!novaMovimentacao.produtoId) {
       alert('Selecione um produto.')
       return
@@ -42,7 +53,7 @@ function Movimentacoes({
     }
 
     const produtoSelecionado = produtos.find(
-      (produto) => produto.id === Number(novaMovimentacao.produtoId)
+      (produto) => produto.id === novaMovimentacao.produtoId
     )
 
     if (!produtoSelecionado) {
@@ -58,34 +69,36 @@ function Movimentacoes({
       return
     }
 
+    setSalvando(true)
+
+    const movimentacaoParaSalvar = {
+      empresa_id: empresaAtiva.id,
+      produto_id: novaMovimentacao.produtoId,
+      usuario_id: usuarioLogado?.id || null,
+      tipo: novaMovimentacao.tipo,
+      quantidade,
+      data_movimentacao: novaMovimentacao.data,
+      observacao: novaMovimentacao.observacao.trim() || null,
+    }
+
+    const { error } = await supabase
+      .from('movimentacoes')
+      .insert(movimentacaoParaSalvar)
+
+    if (error) {
+      console.error('Erro ao salvar movimentação:', error)
+      alert(error.message || 'Erro ao salvar movimentação.')
+      setSalvando(false)
+      return
+    }
+
+    await carregarProdutos()
+    await carregarMovimentacoes()
+
     const novoEstoque =
       novaMovimentacao.tipo === 'entrada'
         ? produtoSelecionado.estoqueAtual + quantidade
         : produtoSelecionado.estoqueAtual - quantidade
-
-    const produtosAtualizados = produtos.map((produto) => {
-      if (produto.id === produtoSelecionado.id) {
-        return {
-          ...produto,
-          estoqueAtual: novoEstoque,
-        }
-      }
-
-      return produto
-    })
-
-    const movimentacao = {
-      id: Date.now(),
-      produtoId: produtoSelecionado.id,
-      produtoNome: produtoSelecionado.nome,
-      tipo: novaMovimentacao.tipo,
-      quantidade,
-      data: novaMovimentacao.data,
-      observacao: novaMovimentacao.observacao,
-    }
-
-    setProdutos(produtosAtualizados)
-    setMovimentacoes([...movimentacoes, movimentacao])
 
     if (
       novaMovimentacao.tipo === 'saida' &&
@@ -105,6 +118,8 @@ function Movimentacoes({
       quantidade: '',
       observacao: '',
     })
+
+    setSalvando(false)
   }
 
   return (
@@ -113,6 +128,10 @@ function Movimentacoes({
         <h2 className="text-3xl font-bold text-slate-900">Movimentações</h2>
         <p className="mt-2 text-slate-600">
           Registre entradas e saídas de produtos no estoque.
+        </p>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Empresa atual: {empresaAtiva?.nome}
         </p>
       </div>
 
@@ -124,7 +143,9 @@ function Movimentacoes({
             </label>
             <select
               value={novaMovimentacao.produtoId}
-              onChange={(event) => atualizarCampo('produtoId', event.target.value)}
+              onChange={(event) =>
+                atualizarCampo('produtoId', event.target.value)
+              }
               className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option value="">Selecione um produto</option>
@@ -170,7 +191,9 @@ function Movimentacoes({
             <input
               type="number"
               value={novaMovimentacao.quantidade}
-              onChange={(event) => atualizarCampo('quantidade', event.target.value)}
+              onChange={(event) =>
+                atualizarCampo('quantidade', event.target.value)
+              }
               placeholder="Ex: 10"
               className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
@@ -182,7 +205,9 @@ function Movimentacoes({
             </label>
             <textarea
               value={novaMovimentacao.observacao}
-              onChange={(event) => atualizarCampo('observacao', event.target.value)}
+              onChange={(event) =>
+                atualizarCampo('observacao', event.target.value)
+              }
               placeholder="Ex: venda do dia, compra de fornecedor..."
               className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               rows="4"
@@ -193,9 +218,10 @@ function Movimentacoes({
             <button
               type="button"
               onClick={salvarMovimentacao}
-              className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+              disabled={salvando}
+              className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              Salvar movimentação
+              {salvando ? 'Salvando...' : 'Salvar movimentação'}
             </button>
           </div>
         </form>
@@ -221,39 +247,54 @@ function Movimentacoes({
             </thead>
 
             <tbody>
-              {[...movimentacoes].reverse().map((movimentacao) => (
-                <tr key={movimentacao.id} className="border-t border-slate-100">
-                  <td className="px-5 py-4 font-medium text-slate-900">
-                    {movimentacao.produtoNome}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <span
-                      className={
-                        movimentacao.tipo === 'entrada'
-                          ? 'rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700'
-                          : 'rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700'
-                      }
-                    >
-                      {movimentacao.tipo === 'entrada' ? 'Entrada' : 'Saída'}
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-4 text-slate-600">
-                    {movimentacao.quantidade}
-                  </td>
-
-                  <td className="px-5 py-4 text-slate-600">
-                    {movimentacao.data}
-                  </td>
-
-                  <td className="px-5 py-4 text-slate-600">
-                    {movimentacao.observacao || '-'}
+              {carregandoMovimentacoes && (
+                <tr>
+                  <td
+                    colSpan="5"
+                    className="px-5 py-8 text-center text-slate-500"
+                  >
+                    Carregando movimentações...
                   </td>
                 </tr>
-              ))}
+              )}
 
-              {movimentacoes.length === 0 && (
+              {!carregandoMovimentacoes &&
+                movimentacoes.map((movimentacao) => (
+                  <tr
+                    key={movimentacao.id}
+                    className="border-t border-slate-100"
+                  >
+                    <td className="px-5 py-4 font-medium text-slate-900">
+                      {movimentacao.produtoNome}
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <span
+                        className={
+                          movimentacao.tipo === 'entrada'
+                            ? 'rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700'
+                            : 'rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700'
+                        }
+                      >
+                        {movimentacao.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                      </span>
+                    </td>
+
+                    <td className="px-5 py-4 text-slate-600">
+                      {movimentacao.quantidade}
+                    </td>
+
+                    <td className="px-5 py-4 text-slate-600">
+                      {movimentacao.data}
+                    </td>
+
+                    <td className="px-5 py-4 text-slate-600">
+                      {movimentacao.observacao || '-'}
+                    </td>
+                  </tr>
+                ))}
+
+              {!carregandoMovimentacoes && movimentacoes.length === 0 && (
                 <tr>
                   <td
                     colSpan="5"

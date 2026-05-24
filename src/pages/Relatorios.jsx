@@ -1,4 +1,13 @@
 import { useState } from 'react'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
 
 function Relatorios({ produtos, movimentacoes }) {
   const dataAtual = new Date()
@@ -79,6 +88,18 @@ function Relatorios({ produtos, movimentacoes }) {
     (a, b) => b.saidas - a.saidas
   )[0]
 
+  const dadosGraficoMaisVendidos = relatorioPorProduto
+    .filter((item) => item.saidas > 0)
+    .sort((a, b) => b.saidas - a.saidas)
+    .slice(0, 10)
+    .map((item) => ({
+      nome:
+        item.produto.length > 18
+          ? `${item.produto.slice(0, 18)}...`
+          : item.produto,
+      saidas: item.saidas,
+    }))
+
   return (
     <section>
       <div>
@@ -157,6 +178,37 @@ function Relatorios({ produtos, movimentacoes }) {
         >
           Relatório atualizado
         </button>
+      </div>
+
+      <div className="mt-6 bg-white rounded-2xl shadow-sm p-6">
+        <div>
+          <h3 className="text-xl font-bold text-slate-900">
+            Produtos mais vendidos
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            Ranking dos produtos com maior saída no período selecionado.
+          </p>
+        </div>
+
+        <div className="mt-6 h-80">
+          {dadosGraficoMaisVendidos.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dadosGraficoMaisVendidos}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="nome" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="saidas" name="Saídas" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex items-center justify-center rounded-xl bg-slate-50 border border-dashed border-slate-300">
+              <p className="text-sm text-slate-500">
+                Nenhuma saída registrada no período selecionado.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="mt-6 bg-white rounded-2xl shadow-sm overflow-hidden">

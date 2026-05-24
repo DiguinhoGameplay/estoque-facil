@@ -1,54 +1,101 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { supabase } from '../services/supabase'
 import Produtos from './Produtos'
 import Movimentacoes from './Movimentacoes'
 import Relatorios from './Relatorios'
 
-function Dashboard() {
+function Dashboard({
+  usuarioLogado,
+  empresasUsuario,
+  empresaAtiva,
+  setEmpresaAtiva,
+  onLogout,
+}) {
   const [telaAtual, setTelaAtual] = useState('dashboard')
 
-  const [produtos, setProdutos] = useState([
-    {
-      id: 1,
-      nome: 'Guia da Corrente KTM Azul',
-      codigo: 'GC-KTM-AZUL',
-      categoria: 'Guia de corrente',
-      estoqueAtual: 15,
-      estoqueMinimo: 20,
-      observacao: '',
-      ativo: true,
-    },
-    {
-      id: 2,
-      nome: 'Guia da Corrente KTM Laranja',
-      codigo: 'GC-KTM-LARANJA',
-      categoria: 'Guia de corrente',
-      estoqueAtual: 5000,
-      estoqueMinimo: 100,
-      observacao: '',
-      ativo: true,
-    },
-  ])
+  const [produtos, setProdutos] = useState([])
+  const [carregandoProdutos, setCarregandoProdutos] = useState(false)
 
-  const [movimentacoes, setMovimentacoes] = useState([
-    {
-      id: 1,
-      produtoId: 1,
-      produtoNome: 'Guia da Corrente KTM Azul',
-      tipo: 'saida',
-      quantidade: 10,
-      data: '2026-05-24',
-      observacao: 'Venda do dia',
-    },
-    {
-      id: 2,
-      produtoId: 2,
-      produtoNome: 'Guia da Corrente KTM Laranja',
-      tipo: 'entrada',
-      quantidade: 500,
-      data: '2026-05-24',
-      observacao: 'Compra de fornecedor',
-    },
-  ])
+  const [movimentacoes, setMovimentacoes] = useState([])
+  const [carregandoMovimentacoes, setCarregandoMovimentacoes] = useState(false)
+
+  useEffect(() => {
+    if (empresaAtiva?.id) {
+      carregarProdutos()
+      carregarMovimentacoes()
+    }
+  }, [empresaAtiva])
+
+  async function carregarProdutos() {
+    setCarregandoProdutos(true)
+
+    const { data, error } = await supabase
+      .from('produtos')
+      .select('*')
+      .eq('empresa_id', empresaAtiva.id)
+      .order('criado_em', { ascending: false })
+
+    if (error) {
+      console.error('Erro ao carregar produtos:', error)
+      alert('Erro ao carregar produtos.')
+      setCarregandoProdutos(false)
+      return
+    }
+
+    const produtosFormatados = data.map((produto) => ({
+      id: produto.id,
+      empresaId: produto.empresa_id,
+      nome: produto.nome,
+      codigo: produto.codigo || 'Sem código',
+      categoria: produto.categoria || 'Sem categoria',
+      estoqueAtual: produto.estoque_atual,
+      estoqueMinimo: produto.estoque_minimo,
+      observacao: produto.observacao || '',
+      ativo: produto.ativo,
+    }))
+
+    setProdutos(produtosFormatados)
+    setCarregandoProdutos(false)
+  }
+
+  async function carregarMovimentacoes() {
+    setCarregandoMovimentacoes(true)
+
+    const { data, error } = await supabase
+      .from('movimentacoes')
+      .select(`
+        *,
+        produtos (
+          nome
+        )
+      `)
+      .eq('empresa_id', empresaAtiva.id)
+      .order('data_movimentacao', { ascending: false })
+      .order('criada_em', { ascending: false })
+
+    if (error) {
+      console.error('Erro ao carregar movimentações:', error)
+      alert('Erro ao carregar movimentações.')
+      setCarregandoMovimentacoes(false)
+      return
+    }
+
+    const movimentacoesFormatadas = data.map((movimentacao) => ({
+      id: movimentacao.id,
+      empresaId: movimentacao.empresa_id,
+      produtoId: movimentacao.produto_id,
+      produtoNome: movimentacao.produtos?.nome || 'Produto não encontrado',
+      usuarioId: movimentacao.usuario_id,
+      tipo: movimentacao.tipo,
+      quantidade: movimentacao.quantidade,
+      data: movimentacao.data_movimentacao,
+      observacao: movimentacao.observacao || '',
+      criadaEm: movimentacao.criada_em,
+    }))
+
+    setMovimentacoes(movimentacoesFormatadas)
+    setCarregandoMovimentacoes(false)
+  }
 
   const produtosAtivos = produtos.filter((produto) => produto.ativo)
 
@@ -56,24 +103,65 @@ function Dashboard() {
     (produto) => produto.estoqueAtual < produto.estoqueMinimo
   )
 
-  const saidasNoMes = movimentacoes
+  const dataAtual = new Date()
+  const mesAtual = String(dataAtual.getMonth() + 1).padStart(2, '0')
+  const anoAtual = String(dataAtual.getFullYear())
+
+  const movimentacoesDoMes = movimentacoes.filter((movimentacao) => {
+    const [ano, mes] = movimentacao.data.split('-')
+
+    return ano === anoAtual && mes === mesAtual
+  })
+
+  const saidasNoMes = movimentacoesDoMes
     .filter((movimentacao) => movimentacao.tipo === 'saida')
     .reduce((total, movimentacao) => total + movimentacao.quantidade, 0)
 
-  const ultimasMovimentacoes = [...movimentacoes].slice(-5).reverse()
+  const produtoMaisVendido = movimentacoesDoMes
+    .filter((movimentacao) => movimentacao.tipo === 'saida')
+    .reduce((ranking, movimentacao) => {
+      const produtoExistente = ranking.find(
+        (item) => item.produtoId === movimentacao.produtoId
+      )
+
+      if (produtoExistente) {
+        produtoExistente.quantidade += movimentacao.quantidade
+      } else {
+        ranking.push({
+          produtoId: movimentacao.produtoId,
+          produtoNome: movimentacao.produtoNome,
+          quantidade: movimentacao.quantidade,
+        })
+      }
+
+      return ranking
+    }, [])
+    .sort((a, b) => b.quantidade - a.quantidade)[0]
+
+  const ultimasMovimentacoes = [...movimentacoes].slice(0, 5)
 
   function renderizarConteudo() {
     if (telaAtual === 'produtos') {
-      return <Produtos produtos={produtos} setProdutos={setProdutos} />
+      return (
+        <Produtos
+          produtos={produtos}
+          setProdutos={setProdutos}
+          empresaAtiva={empresaAtiva}
+          carregandoProdutos={carregandoProdutos}
+        />
+      )
     }
 
     if (telaAtual === 'movimentacoes') {
       return (
         <Movimentacoes
           produtos={produtos}
-          setProdutos={setProdutos}
           movimentacoes={movimentacoes}
-          setMovimentacoes={setMovimentacoes}
+          empresaAtiva={empresaAtiva}
+          usuarioLogado={usuarioLogado}
+          carregandoMovimentacoes={carregandoMovimentacoes}
+          carregarProdutos={carregarProdutos}
+          carregarMovimentacoes={carregarMovimentacoes}
         />
       )
     }
@@ -85,7 +173,9 @@ function Dashboard() {
     return (
       <section>
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-slate-900">Dashboard</h2>
+          <h2 className="text-3xl font-bold text-slate-900">
+            Painel Administrativo
+          </h2>
           <p className="mt-2 text-slate-600">
             Resumo geral do estoque da empresa.
           </p>
@@ -116,7 +206,7 @@ function Dashboard() {
           <div className="bg-white rounded-2xl shadow-sm p-5">
             <p className="text-sm text-slate-500">Mais vendido</p>
             <strong className="mt-2 block text-lg text-slate-900">
-              Em breve
+              {produtoMaisVendido ? produtoMaisVendido.produtoNome : 'Sem vendas'}
             </strong>
           </div>
         </div>
@@ -174,12 +264,15 @@ function Dashboard() {
                       <td className="py-3 text-slate-700">
                         {movimentacao.produtoNome}
                       </td>
+
                       <td className="py-3 text-slate-700">
                         {movimentacao.tipo === 'entrada' ? 'Entrada' : 'Saída'}
                       </td>
+
                       <td className="py-3 text-slate-700">
                         {movimentacao.quantidade}
                       </td>
+
                       <td className="py-3 text-slate-700">
                         {movimentacao.data}
                       </td>
@@ -214,17 +307,42 @@ function Dashboard() {
             <p className="text-sm text-blue-600 font-semibold uppercase">
               Sistema de estoque
             </p>
+
             <h1 className="text-2xl font-bold text-slate-900">
               Estoque Fácil
             </h1>
+
+            <p className="text-sm text-slate-500">
+              Usuário: {usuarioLogado?.nome}
+            </p>
           </div>
 
           <nav className="flex flex-wrap gap-2">
+            {empresasUsuario.length > 1 && (
+              <select
+                value={empresaAtiva?.id || ''}
+                onChange={(event) => {
+                  const empresaSelecionada = empresasUsuario.find(
+                    (empresa) => empresa.id === event.target.value
+                  )
+
+                  setEmpresaAtiva(empresaSelecionada)
+                }}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                {empresasUsuario.map((empresa) => (
+                  <option key={empresa.id} value={empresa.id}>
+                    {empresa.nome}
+                  </option>
+                ))}
+              </select>
+            )}
+
             <button
               onClick={() => setTelaAtual('dashboard')}
               className={estiloBotaoMenu('dashboard')}
             >
-              Dashboard
+              Painel Administrativo
             </button>
 
             <button
@@ -248,7 +366,10 @@ function Dashboard() {
               Relatórios
             </button>
 
-            <button className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">
+            <button
+              onClick={onLogout}
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+            >
               Sair
             </button>
           </nav>
