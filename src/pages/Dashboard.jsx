@@ -92,6 +92,8 @@ function Dashboard({
       data: movimentacao.data_movimentacao,
       observacao: movimentacao.observacao || '',
       criadaEm: movimentacao.criada_em,
+      estornada: movimentacao.estornada,
+      movimentacaoOriginalId: movimentacao.movimentacao_original_id,
     }))
 
     setMovimentacoes(movimentacoesFormatadas)

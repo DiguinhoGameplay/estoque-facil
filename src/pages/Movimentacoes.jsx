@@ -11,6 +11,7 @@ function Movimentacoes({
   carregarMovimentacoes,
 }) {
   const [salvando, setSalvando] = useState(false)
+  const [estornandoId, setEstornandoId] = useState(null)
 
   const [novaMovimentacao, setNovaMovimentacao] = useState({
     produtoId: '',
@@ -21,6 +22,8 @@ function Movimentacoes({
   })
 
   const produtosAtivos = produtos.filter((produto) => produto.ativo)
+
+  const movimentacoesRecentes = movimentacoes.slice(0, 10)
 
   const produtoSelecionado = produtos.find(
     (produto) => produto.id === novaMovimentacao.produtoId
@@ -80,7 +83,10 @@ function Movimentacoes({
       return
     }
 
-    if (novaMovimentacao.tipo === 'saida' && quantidade > produtoSelecionado.estoqueAtual) {
+    if (
+      novaMovimentacao.tipo === 'saida' &&
+      quantidade > produtoSelecionado.estoqueAtual
+    ) {
       alert('Não há estoque suficiente para registrar esta saída.')
       return
     }
@@ -130,10 +136,102 @@ function Movimentacoes({
     setSalvando(false)
   }
 
+  async function estornarMovimentacao(movimentacao) {
+    const ehEstorno = movimentacao.movimentacaoOriginalId !== null
+    const jaFoiEstornada = movimentacao.estornada
+
+    if (ehEstorno) {
+      alert('Esta movimentação já é um estorno e não pode ser estornada novamente.')
+      return
+    }
+
+    if (jaFoiEstornada) {
+      alert('Esta movimentação já foi estornada anteriormente.')
+      return
+    }
+
+    const confirmar = confirm(
+      `Deseja estornar esta movimentação?\n\nProduto: ${movimentacao.produtoNome}\nTipo original: ${
+        movimentacao.tipo === 'entrada' ? 'Entrada' : 'Saída'
+      }\nQuantidade: ${movimentacao.quantidade}`
+    )
+
+    if (!confirmar) return
+
+    const produtoOriginal = produtos.find(
+      (produto) => produto.id === movimentacao.produtoId
+    )
+
+    if (!produtoOriginal) {
+      alert('Produto não encontrado para realizar o estorno.')
+      return
+    }
+
+    const tipoEstorno = movimentacao.tipo === 'entrada' ? 'saida' : 'entrada'
+
+    if (
+      tipoEstorno === 'saida' &&
+      movimentacao.quantidade > produtoOriginal.estoqueAtual
+    ) {
+      alert(
+        'Não há estoque suficiente para estornar esta entrada. Verifique o estoque atual do produto.'
+      )
+      return
+    }
+
+    setEstornandoId(movimentacao.id)
+
+    const estornoParaSalvar = {
+      empresa_id: empresaAtiva.id,
+      produto_id: movimentacao.produtoId,
+      usuario_id: usuarioLogado?.id || null,
+      tipo: tipoEstorno,
+      quantidade: movimentacao.quantidade,
+      data_movimentacao: new Date().toISOString().split('T')[0],
+      observacao: `Estorno da movimentação de ${movimentacao.tipo === 'entrada' ? 'entrada' : 'saída'} realizada em ${movimentacao.data}. Observação original: ${movimentacao.observacao || 'sem observação'}.`,
+      movimentacao_original_id: movimentacao.id,
+    }
+
+    const { error } = await supabase
+      .from('movimentacoes')
+      .insert(estornoParaSalvar)
+
+    if (error) {
+      console.error('Erro ao estornar movimentação:', error)
+      alert(error.message || 'Erro ao estornar movimentação.')
+      setEstornandoId(null)
+      return
+    }
+
+    const { error: erroAtualizarOriginal } = await supabase
+      .from('movimentacoes')
+      .update({ estornada: true })
+      .eq('id', movimentacao.id)
+      .eq('empresa_id', empresaAtiva.id)
+
+    if (erroAtualizarOriginal) {
+      console.error('Erro ao marcar movimentação como estornada:', erroAtualizarOriginal)
+      alert('O estorno foi criado, mas houve erro ao marcar a movimentação original como estornada.')
+      setEstornandoId(null)
+      return
+    }
+
+    await carregarProdutos()
+    await carregarMovimentacoes()
+
+    alert('Movimentação estornada com sucesso.')
+    setEstornandoId(null)
+  }
+
+  function podeEstornar(movimentacao) {
+    return !movimentacao.estornada && !movimentacao.movimentacaoOriginalId
+  }
+
   return (
     <section>
       <div>
         <h2 className="text-3xl font-bold text-slate-900">Movimentações</h2>
+
         <p className="mt-2 text-slate-600">
           Registre entradas e saídas de produtos no estoque.
         </p>
@@ -150,6 +248,7 @@ function Movimentacoes({
               <h3 className="text-xl font-bold text-slate-900">
                 Nova movimentação
               </h3>
+
               <p className="mt-1 text-sm text-slate-500">
                 Preencha os dados para atualizar o estoque.
               </p>
@@ -161,6 +260,7 @@ function Movimentacoes({
               <label className="block text-sm font-medium text-slate-700">
                 Produto
               </label>
+
               <select
                 value={novaMovimentacao.produtoId}
                 onChange={(event) =>
@@ -182,6 +282,7 @@ function Movimentacoes({
               <label className="block text-sm font-medium text-slate-700">
                 Tipo
               </label>
+
               <select
                 value={novaMovimentacao.tipo}
                 onChange={(event) => atualizarCampo('tipo', event.target.value)}
@@ -196,6 +297,7 @@ function Movimentacoes({
               <label className="block text-sm font-medium text-slate-700">
                 Data
               </label>
+
               <input
                 type="date"
                 value={novaMovimentacao.data}
@@ -208,6 +310,7 @@ function Movimentacoes({
               <label className="block text-sm font-medium text-slate-700">
                 Quantidade
               </label>
+
               <input
                 type="number"
                 min="1"
@@ -224,6 +327,7 @@ function Movimentacoes({
               <label className="block text-sm font-medium text-slate-700">
                 Observação
               </label>
+
               <textarea
                 value={novaMovimentacao.observacao}
                 onChange={(event) =>
@@ -298,8 +402,11 @@ function Movimentacoes({
                 <p className="text-xs text-blue-700">
                   Estoque após movimentação
                 </p>
+
                 <p className="mt-1 text-2xl font-bold text-blue-900">
-                  {quantidadeInformada > 0 ? estoqueAposMovimentacao : produtoSelecionado.estoqueAtual}
+                  {quantidadeInformada > 0
+                    ? estoqueAposMovimentacao
+                    : produtoSelecionado.estoqueAtual}
                 </p>
               </div>
 
@@ -315,7 +422,8 @@ function Movimentacoes({
           ) : (
             <div className="mt-4 rounded-xl bg-slate-50 border border-dashed border-slate-300 p-4">
               <p className="text-sm text-slate-500">
-                Selecione um produto para visualizar estoque atual, mínimo e previsão após a movimentação.
+                Selecione um produto para visualizar estoque atual, mínimo e
+                previsão após a movimentação.
               </p>
             </div>
           )}
@@ -325,8 +433,12 @@ function Movimentacoes({
       <div className="mt-6 bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="px-6 py-5 border-b border-slate-100">
           <h3 className="text-xl font-bold text-slate-900">
-            Histórico de movimentações
+            Últimas movimentações
           </h3>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Para corrigir um lançamento, use a opção de estorno.
+          </p>
         </div>
 
         <div className="hidden md:block overflow-x-auto">
@@ -338,6 +450,7 @@ function Movimentacoes({
                 <th className="px-5 py-4">Quantidade</th>
                 <th className="px-5 py-4">Data</th>
                 <th className="px-5 py-4">Observação</th>
+                <th className="px-5 py-4">Ações</th>
               </tr>
             </thead>
 
@@ -345,7 +458,7 @@ function Movimentacoes({
               {carregandoMovimentacoes && (
                 <tr>
                   <td
-                    colSpan="5"
+                    colSpan="6"
                     className="px-5 py-8 text-center text-slate-500"
                   >
                     Carregando movimentações...
@@ -354,7 +467,7 @@ function Movimentacoes({
               )}
 
               {!carregandoMovimentacoes &&
-                movimentacoes.map((movimentacao) => (
+                movimentacoesRecentes.map((movimentacao) => (
                   <tr
                     key={movimentacao.id}
                     className="border-t border-slate-100"
@@ -386,13 +499,31 @@ function Movimentacoes({
                     <td className="px-5 py-4 text-slate-600">
                       {movimentacao.observacao || '-'}
                     </td>
+
+                    <td className="px-5 py-4">
+                      {podeEstornar(movimentacao) ? (
+                        <button
+                          onClick={() => estornarMovimentacao(movimentacao)}
+                          disabled={estornandoId === movimentacao.id}
+                          className="text-sm font-semibold text-blue-600 hover:text-blue-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {estornandoId === movimentacao.id
+                            ? 'Estornando...'
+                            : 'Estornar'}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">
+                          Estorno
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
 
-              {!carregandoMovimentacoes && movimentacoes.length === 0 && (
+              {!carregandoMovimentacoes && movimentacoesRecentes.length === 0 && (
                 <tr>
                   <td
-                    colSpan="5"
+                    colSpan="6"
                     className="px-5 py-8 text-center text-slate-500"
                   >
                     Nenhuma movimentação registrada.
@@ -411,7 +542,7 @@ function Movimentacoes({
           )}
 
           {!carregandoMovimentacoes &&
-            movimentacoes.map((movimentacao) => (
+            movimentacoesRecentes.map((movimentacao) => (
               <div
                 key={movimentacao.id}
                 className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm"
@@ -421,6 +552,7 @@ function Movimentacoes({
                     <p className="font-semibold text-slate-900">
                       {movimentacao.produtoNome}
                     </p>
+
                     <p className="mt-1 text-sm text-slate-500">
                       {movimentacao.data}
                     </p>
@@ -452,10 +584,30 @@ function Movimentacoes({
                     </p>
                   </div>
                 </div>
+
+                <div className="mt-4">
+                  {podeEstornar(movimentacao) ? (
+                    <button
+                      onClick={() => estornarMovimentacao(movimentacao)}
+                      disabled={estornandoId === movimentacao.id}
+                      className="w-full rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {estornandoId === movimentacao.id
+                        ? 'Estornando...'
+                        : 'Estornar movimentação'}
+                    </button>
+                  ) : (
+                    <div className="rounded-xl bg-slate-50 px-4 py-3 text-center">
+                      <span className="text-sm font-medium text-slate-400">
+                        Esta movimentação é um estorno
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
 
-          {!carregandoMovimentacoes && movimentacoes.length === 0 && (
+          {!carregandoMovimentacoes && movimentacoesRecentes.length === 0 && (
             <p className="text-center text-sm text-slate-500">
               Nenhuma movimentação registrada.
             </p>
