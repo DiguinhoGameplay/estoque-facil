@@ -73,6 +73,7 @@ function Dashboard({
       .eq('empresa_id', empresaAtiva.id)
       .order('data_movimentacao', { ascending: false })
       .order('criada_em', { ascending: false })
+      .limit(10)
 
     if (error) {
       console.error('Erro ao carregar movimentações:', error)
@@ -175,13 +176,7 @@ function Dashboard({
     }
 
     if (telaAtual === 'relatorios') {
-      return (
-        <Relatorios
-          produtos={produtos}
-          movimentacoes={movimentacoes}
-          empresaAtiva={empresaAtiva}
-        />
-      )
+      return <Relatorios empresaAtiva={empresaAtiva} />
     }
 
     return (

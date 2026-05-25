@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   BarChart,
   Bar,
@@ -8,8 +8,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import { supabase } from '../services/supabase'
 
-function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
+function Relatorios({ empresaAtiva }) {
   const dataAtual = new Date()
 
   const [diaSelecionado, setDiaSelecionado] = useState('')
@@ -18,6 +19,8 @@ function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
     String(dataAtual.getFullYear())
   )
   const [buscaProduto, setBuscaProduto] = useState('')
+  const [relatorioPorProduto, setRelatorioPorProduto] = useState([])
+  const [carregandoRelatorio, setCarregandoRelatorio] = useState(false)
 
   const nomesMeses = [
     { valor: '01', nome: 'Janeiro' },
@@ -34,6 +37,44 @@ function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
     { valor: '12', nome: 'Dezembro' },
   ]
 
+  useEffect(() => {
+    if (empresaAtiva?.id) {
+      carregarRelatorio()
+    }
+  }, [empresaAtiva, diaSelecionado, mesSelecionado, anoSelecionado, buscaProduto])
+
+  async function carregarRelatorio() {
+    setCarregandoRelatorio(true)
+
+    const { data, error } = await supabase.rpc('relatorio_produtos_periodo', {
+      p_empresa_id: empresaAtiva.id,
+      p_ano: Number(anoSelecionado),
+      p_mes: mesSelecionado ? Number(mesSelecionado) : null,
+      p_dia: diaSelecionado ? Number(diaSelecionado) : null,
+      p_busca: buscaProduto.trim(),
+    })
+
+    if (error) {
+      console.error('Erro ao carregar relatório:', error)
+      alert(error.message || 'Erro ao carregar relatório.')
+      setCarregandoRelatorio(false)
+      return
+    }
+
+    const relatorioFormatado = data.map((item) => ({
+      produtoId: item.produto_id,
+      produto: item.produto,
+      categoria: item.categoria,
+      entradas: Number(item.entradas),
+      saidas: Number(item.saidas),
+      estoqueAtual: item.estoque_atual,
+      estoqueMinimo: item.estoque_minimo,
+    }))
+
+    setRelatorioPorProduto(relatorioFormatado)
+    setCarregandoRelatorio(false)
+  }
+
   function calcularQuantidadeDiasDoMes(mes, ano) {
     if (!mes) return 31
 
@@ -48,43 +89,6 @@ function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
   const diasDisponiveis = Array.from({ length: quantidadeDias }, (_, index) => {
     return String(index + 1).padStart(2, '0')
   })
-
-  const movimentacoesDoPeriodo = movimentacoes.filter((movimentacao) => {
-    const [ano, mes, dia] = movimentacao.data.split('-')
-
-    const mesmoAno = ano === anoSelecionado
-    const mesmoMes = !mesSelecionado || mes === mesSelecionado
-    const mesmoDia = !diaSelecionado || dia === diaSelecionado
-
-    return mesmoAno && mesmoMes && mesmoDia
-  })
-
-  const relatorioPorProduto = produtos
-    .filter((produto) =>
-      produto.nome.toLowerCase().includes(buscaProduto.toLowerCase())
-    )
-    .map((produto) => {
-      const movimentacoesProduto = movimentacoesDoPeriodo.filter(
-        (movimentacao) => movimentacao.produtoId === produto.id
-      )
-
-      const entradas = movimentacoesProduto
-        .filter((movimentacao) => movimentacao.tipo === 'entrada')
-        .reduce((total, movimentacao) => total + movimentacao.quantidade, 0)
-
-      const saidas = movimentacoesProduto
-        .filter((movimentacao) => movimentacao.tipo === 'saida')
-        .reduce((total, movimentacao) => total + movimentacao.quantidade, 0)
-
-      return {
-        produto: produto.nome,
-        categoria: produto.categoria,
-        entradas,
-        saidas,
-        estoqueAtual: produto.estoqueAtual,
-        estoqueMinimo: produto.estoqueMinimo,
-      }
-    })
 
   const totalEntradas = relatorioPorProduto.reduce(
     (total, item) => total + item.entradas,
@@ -176,30 +180,32 @@ function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <p className="text-sm text-slate-500">Entradas no período</p>
           <strong className="mt-2 block text-3xl text-slate-900">
-            {totalEntradas}
+            {carregandoRelatorio ? '...' : totalEntradas}
           </strong>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <p className="text-sm text-slate-500">Saídas no período</p>
           <strong className="mt-2 block text-3xl text-slate-900">
-            {totalSaidas}
+            {carregandoRelatorio ? '...' : totalSaidas}
           </strong>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <p className="text-sm text-slate-500">Estoque baixo</p>
           <strong className="mt-2 block text-3xl text-red-600">
-            {produtosComEstoqueBaixo.length}
+            {carregandoRelatorio ? '...' : produtosComEstoqueBaixo.length}
           </strong>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <p className="text-sm text-slate-500">Produto mais vendido</p>
           <strong className="mt-2 block text-lg text-slate-900">
-            {produtoMaisVendido && produtoMaisVendido.saidas > 0
-              ? produtoMaisVendido.produto
-              : 'Sem vendas'}
+            {carregandoRelatorio
+              ? 'Carregando...'
+              : produtoMaisVendido && produtoMaisVendido.saidas > 0
+                ? produtoMaisVendido.produto
+                : 'Sem vendas'}
           </strong>
         </div>
       </div>
@@ -279,7 +285,13 @@ function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
         </div>
 
         <div className="mt-6 h-80">
-          {dadosGraficoMaisVendidos.length > 0 ? (
+          {carregandoRelatorio ? (
+            <div className="h-full flex items-center justify-center rounded-xl bg-slate-50 border border-dashed border-slate-300 px-4 text-center">
+              <p className="text-sm text-slate-500">
+                Carregando gráfico...
+              </p>
+            </div>
+          ) : dadosGraficoMaisVendidos.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={dadosGraficoMaisVendidos}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -310,113 +322,124 @@ function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
           </p>
         </div>
 
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-500">
-              <tr className="text-left">
-                <th className="px-5 py-4">Produto</th>
-                <th className="px-5 py-4">Categoria</th>
-                <th className="px-5 py-4">Entradas</th>
-                <th className="px-5 py-4">Saídas</th>
-                <th className="px-5 py-4">Estoque atual</th>
-                <th className="px-5 py-4">Status</th>
-              </tr>
-            </thead>
+        {carregandoRelatorio ? (
+          <p className="px-5 py-8 text-center text-slate-500">
+            Carregando relatório...
+          </p>
+        ) : (
+          <>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr className="text-left">
+                    <th className="px-5 py-4">Produto</th>
+                    <th className="px-5 py-4">Categoria</th>
+                    <th className="px-5 py-4">Entradas</th>
+                    <th className="px-5 py-4">Saídas</th>
+                    <th className="px-5 py-4">Estoque atual</th>
+                    <th className="px-5 py-4">Status</th>
+                  </tr>
+                </thead>
 
-            <tbody>
+                <tbody>
+                  {relatorioPorProduto.map((item) => (
+                    <tr
+                      key={item.produtoId}
+                      className="border-t border-slate-100"
+                    >
+                      <td className="px-5 py-4 font-medium text-slate-900">
+                        {item.produto}
+                      </td>
+
+                      <td className="px-5 py-4 text-slate-600">
+                        {item.categoria}
+                      </td>
+
+                      <td className="px-5 py-4 text-slate-600">
+                        {item.entradas}
+                      </td>
+
+                      <td className="px-5 py-4 text-slate-600">
+                        {item.saidas}
+                      </td>
+
+                      <td className="px-5 py-4 text-slate-600">
+                        {item.estoqueAtual}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <StatusEstoque item={item} />
+                      </td>
+                    </tr>
+                  ))}
+
+                  {relatorioPorProduto.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan="6"
+                        className="px-5 py-8 text-center text-slate-500"
+                      >
+                        Nenhum produto encontrado no relatório.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="md:hidden p-4 space-y-3">
               {relatorioPorProduto.map((item) => (
-                <tr key={item.produto} className="border-t border-slate-100">
-                  <td className="px-5 py-4 font-medium text-slate-900">
-                    {item.produto}
-                  </td>
+                <div
+                  key={item.produtoId}
+                  className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {item.produto}
+                      </p>
 
-                  <td className="px-5 py-4 text-slate-600">
-                    {item.categoria}
-                  </td>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {item.categoria}
+                      </p>
+                    </div>
 
-                  <td className="px-5 py-4 text-slate-600">
-                    {item.entradas}
-                  </td>
-
-                  <td className="px-5 py-4 text-slate-600">
-                    {item.saidas}
-                  </td>
-
-                  <td className="px-5 py-4 text-slate-600">
-                    {item.estoqueAtual}
-                  </td>
-
-                  <td className="px-5 py-4">
                     <StatusEstoque item={item} />
-                  </td>
-                </tr>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-3">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">Entradas</p>
+                      <p className="text-lg font-bold text-slate-900">
+                        {item.entradas}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">Saídas</p>
+                      <p className="text-lg font-bold text-slate-900">
+                        {item.saidas}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">Estoque</p>
+                      <p className="text-lg font-bold text-slate-900">
+                        {item.estoqueAtual}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               ))}
 
               {relatorioPorProduto.length === 0 && (
-                <tr>
-                  <td
-                    colSpan="6"
-                    className="px-5 py-8 text-center text-slate-500"
-                  >
-                    Nenhum produto encontrado no relatório.
-                  </td>
-                </tr>
+                <p className="text-center text-sm text-slate-500">
+                  Nenhum produto encontrado no relatório.
+                </p>
               )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="md:hidden p-4 space-y-3">
-          {relatorioPorProduto.map((item) => (
-            <div
-              key={item.produto}
-              className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-slate-900">
-                    {item.produto}
-                  </p>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    {item.categoria}
-                  </p>
-                </div>
-
-                <StatusEstoque item={item} />
-              </div>
-
-              <div className="mt-4 grid grid-cols-3 gap-3">
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Entradas</p>
-                  <p className="text-lg font-bold text-slate-900">
-                    {item.entradas}
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Saídas</p>
-                  <p className="text-lg font-bold text-slate-900">
-                    {item.saidas}
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Estoque</p>
-                  <p className="text-lg font-bold text-slate-900">
-                    {item.estoqueAtual}
-                  </p>
-                </div>
-              </div>
             </div>
-          ))}
-
-          {relatorioPorProduto.length === 0 && (
-            <p className="text-center text-sm text-slate-500">
-              Nenhum produto encontrado no relatório.
-            </p>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </section>
   )
