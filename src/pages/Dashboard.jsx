@@ -167,7 +167,13 @@ function Dashboard({
     }
 
     if (telaAtual === 'relatorios') {
-      return <Relatorios produtos={produtos} movimentacoes={movimentacoes} />
+      return (
+        <Relatorios
+          produtos={produtos}
+          movimentacoes={movimentacoes}
+          empresaAtiva={empresaAtiva}
+        />
+      )
     }
 
     return (

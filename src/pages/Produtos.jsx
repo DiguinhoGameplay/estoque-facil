@@ -5,8 +5,9 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
   const [busca, setBusca] = useState('')
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  const [produtoEditandoId, setProdutoEditandoId] = useState(null)
 
-  const [novoProduto, setNovoProduto] = useState({
+  const [formProduto, setFormProduto] = useState({
     nome: '',
     codigo: '',
     categoria: '',
@@ -26,29 +27,71 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
   })
 
   function atualizarCampo(campo, valor) {
-    setNovoProduto({
-      ...novoProduto,
+    setFormProduto({
+      ...formProduto,
       [campo]: valor,
     })
   }
 
-  async function cadastrarProduto() {
+  function limparFormulario() {
+    setFormProduto({
+      nome: '',
+      codigo: '',
+      categoria: '',
+      estoqueAtual: '',
+      estoqueMinimo: '',
+      observacao: '',
+    })
+
+    setProdutoEditandoId(null)
+    setMostrarFormulario(false)
+  }
+
+  function abrirCadastro() {
+    setProdutoEditandoId(null)
+    setFormProduto({
+      nome: '',
+      codigo: '',
+      categoria: '',
+      estoqueAtual: '',
+      estoqueMinimo: '',
+      observacao: '',
+    })
+    setMostrarFormulario(true)
+  }
+
+  function abrirEdicao(produto) {
+    setProdutoEditandoId(produto.id)
+
+    setFormProduto({
+      nome: produto.nome,
+      codigo: produto.codigo === 'Sem código' ? '' : produto.codigo,
+      categoria: produto.categoria === 'Sem categoria' ? '' : produto.categoria,
+      estoqueAtual: produto.estoqueAtual,
+      estoqueMinimo: produto.estoqueMinimo,
+      observacao: produto.observacao || '',
+    })
+
+    setMostrarFormulario(true)
+  }
+
+  async function salvarProduto() {
     if (!empresaAtiva?.id) {
-      alert('Selecione uma empresa antes de cadastrar produtos.')
+      alert('Selecione uma empresa antes de salvar produtos.')
       return
     }
 
-    if (!novoProduto.nome.trim()) {
+    if (!formProduto.nome.trim()) {
       alert('Informe o nome do produto.')
       return
     }
 
-    if (Number(novoProduto.estoqueAtual || 0) < 0) {
-      alert('O estoque inicial não pode ser negativo.')
+    if (Number(formProduto.estoqueAtual || 0) < 0) {
+      alert('O estoque atual não pode ser negativo.')
       return
     }
 
-    if (Number(novoProduto.estoqueMinimo || 0) < 0) {
+    if (Number(formProduto.estoqueMinimo || 0) < 0) {
       alert('O estoque mínimo não pode ser negativo.')
       return
     }
@@ -57,13 +100,51 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
 
     const produtoParaSalvar = {
       empresa_id: empresaAtiva.id,
-      nome: novoProduto.nome.trim(),
-      codigo: novoProduto.codigo.trim() || null,
-      categoria: novoProduto.categoria.trim() || null,
-      estoque_atual: Number(novoProduto.estoqueAtual || 0),
-      estoque_minimo: Number(novoProduto.estoqueMinimo || 0),
-      observacao: novoProduto.observacao.trim() || null,
+      nome: formProduto.nome.trim(),
+      codigo: formProduto.codigo.trim() || null,
+      categoria: formProduto.categoria.trim() || null,
+      estoque_atual: Number(formProduto.estoqueAtual || 0),
+      estoque_minimo: Number(formProduto.estoqueMinimo || 0),
+      observacao: formProduto.observacao.trim() || null,
       ativo: true,
+    }
+
+    if (produtoEditandoId) {
+      const { data, error } = await supabase
+        .from('produtos')
+        .update(produtoParaSalvar)
+        .eq('id', produtoEditandoId)
+        .eq('empresa_id', empresaAtiva.id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Erro ao editar produto:', error)
+        alert('Erro ao editar produto.')
+        setSalvando(false)
+        return
+      }
+
+      const produtoFormatado = {
+        id: data.id,
+        empresaId: data.empresa_id,
+        nome: data.nome,
+        codigo: data.codigo || 'Sem código',
+        categoria: data.categoria || 'Sem categoria',
+        estoqueAtual: data.estoque_atual,
+        estoqueMinimo: data.estoque_minimo,
+        observacao: data.observacao || '',
+        ativo: data.ativo,
+      }
+
+      const produtosAtualizados = produtos.map((produto) =>
+        produto.id === produtoEditandoId ? produtoFormatado : produto
+      )
+
+      setProdutos(produtosAtualizados)
+      setSalvando(false)
+      limparFormulario()
+      return
     }
 
     const { data, error } = await supabase
@@ -92,18 +173,8 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
     }
 
     setProdutos([produtoFormatado, ...produtos])
-
-    setNovoProduto({
-      nome: '',
-      codigo: '',
-      categoria: '',
-      estoqueAtual: '',
-      estoqueMinimo: '',
-      observacao: '',
-    })
-
-    setMostrarFormulario(false)
     setSalvando(false)
+    limparFormulario()
   }
 
   async function inativarProduto(id) {
@@ -152,16 +223,18 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
         </div>
 
         <button
-          onClick={() => setMostrarFormulario(!mostrarFormulario)}
+          onClick={mostrarFormulario ? limparFormulario : abrirCadastro}
           className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
         >
-          {mostrarFormulario ? 'Fechar cadastro' : 'Cadastrar produto'}
+          {mostrarFormulario ? 'Fechar formulário' : 'Cadastrar produto'}
         </button>
       </div>
 
       {mostrarFormulario && (
         <div className="mt-6 bg-white rounded-2xl shadow-sm p-6">
-          <h3 className="text-xl font-bold text-slate-900">Novo produto</h3>
+          <h3 className="text-xl font-bold text-slate-900">
+            {produtoEditandoId ? 'Editar produto' : 'Novo produto'}
+          </h3>
 
           <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
@@ -170,7 +243,7 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
               </label>
               <input
                 type="text"
-                value={novoProduto.nome}
+                value={formProduto.nome}
                 onChange={(event) => atualizarCampo('nome', event.target.value)}
                 placeholder="Ex: Guia da Corrente KTM Azul"
                 className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -183,7 +256,7 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
               </label>
               <input
                 type="text"
-                value={novoProduto.codigo}
+                value={formProduto.codigo}
                 onChange={(event) => atualizarCampo('codigo', event.target.value)}
                 placeholder="Ex: GC-KTM-AZUL"
                 className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -196,7 +269,7 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
               </label>
               <input
                 type="text"
-                value={novoProduto.categoria}
+                value={formProduto.categoria}
                 onChange={(event) =>
                   atualizarCampo('categoria', event.target.value)
                 }
@@ -207,11 +280,11 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
 
             <div>
               <label className="block text-sm font-medium text-slate-700">
-                Estoque inicial
+                Estoque atual
               </label>
               <input
                 type="number"
-                value={novoProduto.estoqueAtual}
+                value={formProduto.estoqueAtual}
                 onChange={(event) =>
                   atualizarCampo('estoqueAtual', event.target.value)
                 }
@@ -226,7 +299,7 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
               </label>
               <input
                 type="number"
-                value={novoProduto.estoqueMinimo}
+                value={formProduto.estoqueMinimo}
                 onChange={(event) =>
                   atualizarCampo('estoqueMinimo', event.target.value)
                 }
@@ -241,7 +314,7 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
               </label>
               <input
                 type="text"
-                value={novoProduto.observacao}
+                value={formProduto.observacao}
                 onChange={(event) =>
                   atualizarCampo('observacao', event.target.value)
                 }
@@ -251,17 +324,21 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
             </div>
           </div>
 
-          <div className="mt-6 flex gap-3">
+          <div className="mt-6 flex flex-col sm:flex-row gap-3">
             <button
-              onClick={cadastrarProduto}
+              onClick={salvarProduto}
               disabled={salvando}
               className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {salvando ? 'Salvando...' : 'Salvar produto'}
+              {salvando
+                ? 'Salvando...'
+                : produtoEditandoId
+                  ? 'Salvar alterações'
+                  : 'Salvar produto'}
             </button>
 
             <button
-              onClick={() => setMostrarFormulario(false)}
+              onClick={limparFormulario}
               className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-200"
             >
               Cancelar
@@ -317,18 +394,23 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
                       <td className="px-5 py-4 font-medium text-slate-900">
                         {produto.nome}
                       </td>
+
                       <td className="px-5 py-4 text-slate-600">
                         {produto.codigo}
                       </td>
+
                       <td className="px-5 py-4 text-slate-600">
                         {produto.categoria}
                       </td>
+
                       <td className="px-5 py-4 text-slate-600">
                         {produto.estoqueAtual}
                       </td>
+
                       <td className="px-5 py-4 text-slate-600">
                         {produto.estoqueMinimo}
                       </td>
+
                       <td className="px-5 py-4">
                         {!produto.ativo ? (
                           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
@@ -344,15 +426,25 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
                           </span>
                         )}
                       </td>
+
                       <td className="px-5 py-4">
-                        {produto.ativo && (
+                        <div className="flex flex-wrap gap-3">
                           <button
-                            onClick={() => inativarProduto(produto.id)}
-                            className="text-sm font-semibold text-red-600 hover:text-red-800"
+                            onClick={() => abrirEdicao(produto)}
+                            className="text-sm font-semibold text-blue-600 hover:text-blue-800"
                           >
-                            Inativar
+                            Editar
                           </button>
-                        )}
+
+                          {produto.ativo && (
+                            <button
+                              onClick={() => inativarProduto(produto.id)}
+                              className="text-sm font-semibold text-red-600 hover:text-red-800"
+                            >
+                              Inativar
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )

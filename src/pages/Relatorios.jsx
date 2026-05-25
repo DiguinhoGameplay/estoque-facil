@@ -9,17 +9,14 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 
-function Relatorios({ produtos, movimentacoes }) {
+function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
   const dataAtual = new Date()
 
-  const [mesSelecionado, setMesSelecionado] = useState(
-    String(dataAtual.getMonth() + 1).padStart(2, '0')
-  )
-
+  const [diaSelecionado, setDiaSelecionado] = useState('')
+  const [mesSelecionado, setMesSelecionado] = useState('')
   const [anoSelecionado, setAnoSelecionado] = useState(
     String(dataAtual.getFullYear())
   )
-
   const [buscaProduto, setBuscaProduto] = useState('')
 
   const nomesMeses = [
@@ -37,10 +34,29 @@ function Relatorios({ produtos, movimentacoes }) {
     { valor: '12', nome: 'Dezembro' },
   ]
 
-  const movimentacoesDoMes = movimentacoes.filter((movimentacao) => {
-    const [ano, mes] = movimentacao.data.split('-')
+  function calcularQuantidadeDiasDoMes(mes, ano) {
+    if (!mes) return 31
 
-    return ano === anoSelecionado && mes === mesSelecionado
+    return new Date(Number(ano), Number(mes), 0).getDate()
+  }
+
+  const quantidadeDias = calcularQuantidadeDiasDoMes(
+    mesSelecionado,
+    anoSelecionado
+  )
+
+  const diasDisponiveis = Array.from({ length: quantidadeDias }, (_, index) => {
+    return String(index + 1).padStart(2, '0')
+  })
+
+  const movimentacoesDoPeriodo = movimentacoes.filter((movimentacao) => {
+    const [ano, mes, dia] = movimentacao.data.split('-')
+
+    const mesmoAno = ano === anoSelecionado
+    const mesmoMes = !mesSelecionado || mes === mesSelecionado
+    const mesmoDia = !diaSelecionado || dia === diaSelecionado
+
+    return mesmoAno && mesmoMes && mesmoDia
   })
 
   const relatorioPorProduto = produtos
@@ -48,7 +64,7 @@ function Relatorios({ produtos, movimentacoes }) {
       produto.nome.toLowerCase().includes(buscaProduto.toLowerCase())
     )
     .map((produto) => {
-      const movimentacoesProduto = movimentacoesDoMes.filter(
+      const movimentacoesProduto = movimentacoesDoPeriodo.filter(
         (movimentacao) => movimentacao.produtoId === produto.id
       )
 
@@ -100,12 +116,41 @@ function Relatorios({ produtos, movimentacoes }) {
       saidas: item.saidas,
     }))
 
+  function gerarTextoPeriodo() {
+    const nomeMes = nomesMeses.find(
+      (mes) => mes.valor === mesSelecionado
+    )?.nome
+
+    if (diaSelecionado && mesSelecionado) {
+      return `Dia ${diaSelecionado}/${mesSelecionado}/${anoSelecionado}`
+    }
+
+    if (diaSelecionado && !mesSelecionado) {
+      return `Dia ${diaSelecionado} de todos os meses de ${anoSelecionado}`
+    }
+
+    if (!diaSelecionado && mesSelecionado) {
+      return `${nomeMes} de ${anoSelecionado}`
+    }
+
+    return `Ano inteiro de ${anoSelecionado}`
+  }
+
   return (
     <section>
       <div>
         <h2 className="text-3xl font-bold text-slate-900">Relatórios</h2>
+
         <p className="mt-2 text-slate-600">
           Visualize entradas, saídas e estoque atual por período.
+        </p>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Empresa atual: {empresaAtiva?.nome}
+        </p>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Período analisado: {gerarTextoPeriodo()}
         </p>
       </div>
 
@@ -143,10 +188,41 @@ function Relatorios({ produtos, movimentacoes }) {
 
       <div className="mt-6 bg-white rounded-2xl shadow-sm p-5 grid grid-cols-1 md:grid-cols-4 gap-4">
         <select
-          value={mesSelecionado}
-          onChange={(event) => setMesSelecionado(event.target.value)}
+          value={diaSelecionado}
+          onChange={(event) => setDiaSelecionado(event.target.value)}
           className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         >
+          <option value="">Selecionar dia</option>
+
+          {diasDisponiveis.map((dia) => (
+            <option key={dia} value={dia}>
+              Dia {dia}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={mesSelecionado}
+          onChange={(event) => {
+            const novoMes = event.target.value
+            const novaQuantidadeDias = calcularQuantidadeDiasDoMes(
+              novoMes,
+              anoSelecionado
+            )
+
+            setMesSelecionado(novoMes)
+
+            if (
+              diaSelecionado &&
+              Number(diaSelecionado) > novaQuantidadeDias
+            ) {
+              setDiaSelecionado('')
+            }
+          }}
+          className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+        >
+          <option value="">Selecionar mês</option>
+
           {nomesMeses.map((mes) => (
             <option key={mes.valor} value={mes.valor}>
               {mes.nome}
@@ -171,13 +247,6 @@ function Relatorios({ produtos, movimentacoes }) {
           placeholder="Filtrar por produto"
           className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         />
-
-        <button
-          type="button"
-          className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
-        >
-          Relatório atualizado
-        </button>
       </div>
 
       <div className="mt-6 bg-white rounded-2xl shadow-sm p-6">
@@ -185,6 +254,7 @@ function Relatorios({ produtos, movimentacoes }) {
           <h3 className="text-xl font-bold text-slate-900">
             Produtos mais vendidos
           </h3>
+
           <p className="mt-1 text-sm text-slate-500">
             Ranking dos produtos com maior saída no período selecionado.
           </p>
