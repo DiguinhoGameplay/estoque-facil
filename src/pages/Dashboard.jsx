@@ -12,6 +12,7 @@ function Dashboard({
   onLogout,
 }) {
   const [telaAtual, setTelaAtual] = useState('dashboard')
+  const [menuMobileAberto, setMenuMobileAberto] = useState(false)
 
   const [produtos, setProdutos] = useState([])
   const [carregandoProdutos, setCarregandoProdutos] = useState(false)
@@ -33,7 +34,7 @@ function Dashboard({
       .from('produtos')
       .select('*')
       .eq('empresa_id', empresaAtiva.id)
-      .order('criado_em', { ascending: false })
+      .order('nome', { ascending: true })
 
     if (error) {
       console.error('Erro ao carregar produtos:', error)
@@ -140,6 +141,11 @@ function Dashboard({
 
   const ultimasMovimentacoes = [...movimentacoes].slice(0, 5)
 
+  function mudarTela(tela) {
+    setTelaAtual(tela)
+    setMenuMobileAberto(false)
+  }
+
   function renderizarConteudo() {
     if (telaAtual === 'produtos') {
       return (
@@ -178,13 +184,128 @@ function Dashboard({
 
     return (
       <section>
-        <div className="mb-8">
+        <div className="mb-6">
           <h2 className="text-3xl font-bold text-slate-900">
             Painel Administrativo
           </h2>
+
           <p className="mt-2 text-slate-600">
             Resumo geral do estoque da empresa.
           </p>
+        </div>
+
+        <div className="mb-8 bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-6 py-5 border-b border-slate-100">
+            <h3 className="text-xl font-bold text-slate-900">
+              Produtos ativos em estoque
+            </h3>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Consulta rápida para o comercial verificar disponibilidade.
+            </p>
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-500">
+                <tr className="text-left">
+                  <th className="px-6 py-4">Produto</th>
+                  <th className="px-6 py-4 text-right">Estoque</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {carregandoProdutos && (
+                  <tr>
+                    <td
+                      colSpan="2"
+                      className="px-6 py-8 text-center text-slate-500"
+                    >
+                      Carregando produtos...
+                    </td>
+                  </tr>
+                )}
+
+                {!carregandoProdutos &&
+                  produtosAtivos.map((produto) => {
+                    const baixoEstoque =
+                      produto.estoqueAtual < produto.estoqueMinimo
+
+                    return (
+                      <tr key={produto.id} className="border-t border-slate-100">
+                        <td className="px-6 py-4 font-medium text-slate-900">
+                          {produto.nome}
+                        </td>
+
+                        <td className="px-6 py-4 text-right">
+                          <span
+                            className={
+                              baixoEstoque
+                                ? 'font-bold text-red-600'
+                                : 'font-bold text-slate-900'
+                            }
+                          >
+                            {produto.estoqueAtual}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+
+                {!carregandoProdutos && produtosAtivos.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan="2"
+                      className="px-6 py-8 text-center text-slate-500"
+                    >
+                      Nenhum produto ativo cadastrado.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="md:hidden p-4 space-y-3">
+            {carregandoProdutos && (
+              <p className="text-center text-sm text-slate-500">
+                Carregando produtos...
+              </p>
+            )}
+
+            {!carregandoProdutos &&
+              produtosAtivos.map((produto) => {
+                const baixoEstoque =
+                  produto.estoqueAtual < produto.estoqueMinimo
+
+                return (
+                  <div
+                    key={produto.id}
+                    className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm flex items-center justify-between gap-4"
+                  >
+                    <p className="font-semibold text-slate-900">
+                      {produto.nome}
+                    </p>
+
+                    <span
+                      className={
+                        baixoEstoque
+                          ? 'rounded-full bg-red-100 px-3 py-1 text-sm font-bold text-red-700'
+                          : 'rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-slate-700'
+                      }
+                    >
+                      {produto.estoqueAtual}
+                    </span>
+                  </div>
+                )
+              })}
+
+            {!carregandoProdutos && produtosAtivos.length === 0 && (
+              <p className="text-center text-sm text-slate-500">
+                Nenhum produto ativo cadastrado.
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
@@ -308,77 +429,146 @@ function Dashboard({
   return (
     <main className="min-h-screen bg-slate-100">
       <header className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm text-blue-600 font-semibold uppercase">
-              Sistema de estoque
-            </p>
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-blue-600 font-semibold uppercase">
+                Sistema de estoque
+              </p>
 
-            <h1 className="text-2xl font-bold text-slate-900">
-              Estoque Fácil
-            </h1>
+              <h1 className="text-2xl font-bold text-slate-900">
+                Estoque Fácil
+              </h1>
 
-            <p className="text-sm text-slate-500">
-              Usuário: {usuarioLogado?.nome}
-            </p>
+              <p className="text-sm text-slate-500">
+                Usuário: {usuarioLogado?.nome}
+              </p>
+            </div>
+
+            <button
+              onClick={() => setMenuMobileAberto(!menuMobileAberto)}
+              className="lg:hidden rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+            >
+              ☰ Menu
+            </button>
+
+            <nav className="hidden lg:flex flex-wrap gap-2">
+              {empresasUsuario.length > 1 && (
+                <select
+                  value={empresaAtiva?.id || ''}
+                  onChange={(event) => {
+                    const empresaSelecionada = empresasUsuario.find(
+                      (empresa) => empresa.id === event.target.value
+                    )
+
+                    setEmpresaAtiva(empresaSelecionada)
+                  }}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                >
+                  {empresasUsuario.map((empresa) => (
+                    <option key={empresa.id} value={empresa.id}>
+                      {empresa.nome}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <button
+                onClick={() => mudarTela('dashboard')}
+                className={estiloBotaoMenu('dashboard')}
+              >
+                Painel Administrativo
+              </button>
+
+              <button
+                onClick={() => mudarTela('produtos')}
+                className={estiloBotaoMenu('produtos')}
+              >
+                Produtos
+              </button>
+
+              <button
+                onClick={() => mudarTela('movimentacoes')}
+                className={estiloBotaoMenu('movimentacoes')}
+              >
+                Movimentações
+              </button>
+
+              <button
+                onClick={() => mudarTela('relatorios')}
+                className={estiloBotaoMenu('relatorios')}
+              >
+                Relatórios
+              </button>
+
+              <button
+                onClick={onLogout}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+              >
+                Sair
+              </button>
+            </nav>
           </div>
 
-          <nav className="flex flex-wrap gap-2">
-            {empresasUsuario.length > 1 && (
-              <select
-                value={empresaAtiva?.id || ''}
-                onChange={(event) => {
-                  const empresaSelecionada = empresasUsuario.find(
-                    (empresa) => empresa.id === event.target.value
-                  )
+          {menuMobileAberto && (
+            <nav className="lg:hidden mt-4 grid grid-cols-1 gap-2">
+              {empresasUsuario.length > 1 && (
+                <select
+                  value={empresaAtiva?.id || ''}
+                  onChange={(event) => {
+                    const empresaSelecionada = empresasUsuario.find(
+                      (empresa) => empresa.id === event.target.value
+                    )
 
-                  setEmpresaAtiva(empresaSelecionada)
-                }}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    setEmpresaAtiva(empresaSelecionada)
+                    setMenuMobileAberto(false)
+                  }}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                >
+                  {empresasUsuario.map((empresa) => (
+                    <option key={empresa.id} value={empresa.id}>
+                      {empresa.nome}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <button
+                onClick={() => mudarTela('dashboard')}
+                className={estiloBotaoMenu('dashboard')}
               >
-                {empresasUsuario.map((empresa) => (
-                  <option key={empresa.id} value={empresa.id}>
-                    {empresa.nome}
-                  </option>
-                ))}
-              </select>
-            )}
+                Painel Administrativo
+              </button>
 
-            <button
-              onClick={() => setTelaAtual('dashboard')}
-              className={estiloBotaoMenu('dashboard')}
-            >
-              Painel Administrativo
-            </button>
+              <button
+                onClick={() => mudarTela('produtos')}
+                className={estiloBotaoMenu('produtos')}
+              >
+                Produtos
+              </button>
 
-            <button
-              onClick={() => setTelaAtual('produtos')}
-              className={estiloBotaoMenu('produtos')}
-            >
-              Produtos
-            </button>
+              <button
+                onClick={() => mudarTela('movimentacoes')}
+                className={estiloBotaoMenu('movimentacoes')}
+              >
+                Movimentações
+              </button>
 
-            <button
-              onClick={() => setTelaAtual('movimentacoes')}
-              className={estiloBotaoMenu('movimentacoes')}
-            >
-              Movimentações
-            </button>
+              <button
+                onClick={() => mudarTela('relatorios')}
+                className={estiloBotaoMenu('relatorios')}
+              >
+                Relatórios
+              </button>
 
-            <button
-              onClick={() => setTelaAtual('relatorios')}
-              className={estiloBotaoMenu('relatorios')}
-            >
-              Relatórios
-            </button>
-
-            <button
-              onClick={onLogout}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
-            >
-              Sair
-            </button>
-          </nav>
+              <button
+                onClick={onLogout}
+                className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-700"
+              >
+                Sair
+              </button>
+            </nav>
+          )}
         </div>
       </header>
 
