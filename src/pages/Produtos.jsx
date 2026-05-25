@@ -6,6 +6,7 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [produtoEditandoId, setProdutoEditandoId] = useState(null)
+  const [menuAbertoProdutoId, setMenuAbertoProdutoId] = useState(null)
 
   const [formProduto, setFormProduto] = useState({
     nome: '',
@@ -49,6 +50,8 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
 
   function abrirCadastro() {
     setProdutoEditandoId(null)
+    setMenuAbertoProdutoId(null)
+
     setFormProduto({
       nome: '',
       codigo: '',
@@ -57,11 +60,13 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
       estoqueMinimo: '',
       observacao: '',
     })
+
     setMostrarFormulario(true)
   }
 
   function abrirEdicao(produto) {
     setProdutoEditandoId(produto.id)
+    setMenuAbertoProdutoId(null)
 
     setFormProduto({
       nome: produto.nome,
@@ -125,17 +130,7 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
         return
       }
 
-      const produtoFormatado = {
-        id: data.id,
-        empresaId: data.empresa_id,
-        nome: data.nome,
-        codigo: data.codigo || 'Sem código',
-        categoria: data.categoria || 'Sem categoria',
-        estoqueAtual: data.estoque_atual,
-        estoqueMinimo: data.estoque_minimo,
-        observacao: data.observacao || '',
-        ativo: data.ativo,
-      }
+      const produtoFormatado = formatarProduto(data)
 
       const produtosAtualizados = produtos.map((produto) =>
         produto.id === produtoEditandoId ? produtoFormatado : produto
@@ -160,7 +155,15 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
       return
     }
 
-    const produtoFormatado = {
+    const produtoFormatado = formatarProduto(data)
+
+    setProdutos([produtoFormatado, ...produtos])
+    setSalvando(false)
+    limparFormulario()
+  }
+
+  function formatarProduto(data) {
+    return {
       id: data.id,
       empresaId: data.empresa_id,
       nome: data.nome,
@@ -171,41 +174,69 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
       observacao: data.observacao || '',
       ativo: data.ativo,
     }
-
-    setProdutos([produtoFormatado, ...produtos])
-    setSalvando(false)
-    limparFormulario()
   }
 
-  async function inativarProduto(id) {
-    const confirmar = confirm('Deseja inativar este produto?')
+  async function alterarStatusProduto(produto, novoStatus) {
+    const acao = novoStatus ? 'reativar' : 'inativar'
+    const confirmar = confirm(`Deseja ${acao} este produto?`)
 
     if (!confirmar) return
 
     const { error } = await supabase
       .from('produtos')
-      .update({ ativo: false })
-      .eq('id', id)
+      .update({ ativo: novoStatus })
+      .eq('id', produto.id)
       .eq('empresa_id', empresaAtiva.id)
 
     if (error) {
-      console.error('Erro ao inativar produto:', error)
-      alert('Erro ao inativar produto.')
+      console.error(`Erro ao ${acao} produto:`, error)
+      alert(`Erro ao ${acao} produto.`)
       return
     }
 
-    const produtosAtualizados = produtos.map((produto) => {
-      if (produto.id === id) {
+    const produtosAtualizados = produtos.map((item) => {
+      if (item.id === produto.id) {
         return {
-          ...produto,
-          ativo: false,
+          ...item,
+          ativo: novoStatus,
         }
       }
 
-      return produto
+      return item
     })
 
     setProdutos(produtosAtualizados)
+    setMenuAbertoProdutoId(null)
+  }
+
+  function alternarMenuProduto(id) {
+    setMenuAbertoProdutoId(menuAbertoProdutoId === id ? null : id)
+  }
+
+  function StatusProduto({ produto }) {
+    const baixoEstoque = produto.estoqueAtual < produto.estoqueMinimo
+
+    if (!produto.ativo) {
+      return (
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+          Inativo
+        </span>
+      )
+    }
+
+    if (baixoEstoque) {
+      return (
+        <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+          Baixo estoque
+        </span>
+      )
+    }
+
+    return (
+      <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+        Normal
+      </span>
+    )
   }
 
   return (
@@ -213,6 +244,7 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-900">Produtos</h2>
+
           <p className="mt-2 text-slate-600">
             Cadastre, edite e acompanhe o estoque dos produtos.
           </p>
@@ -358,7 +390,7 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
       </div>
 
       <div className="mt-6 bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-500">
               <tr className="text-left">
@@ -385,70 +417,75 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
               )}
 
               {!carregandoProdutos &&
-                produtosFiltrados.map((produto) => {
-                  const baixoEstoque =
-                    produto.estoqueAtual < produto.estoqueMinimo
+                produtosFiltrados.map((produto) => (
+                  <tr key={produto.id} className="border-t border-slate-100">
+                    <td className="px-5 py-4 font-medium text-slate-900">
+                      {produto.nome}
+                    </td>
 
-                  return (
-                    <tr key={produto.id} className="border-t border-slate-100">
-                      <td className="px-5 py-4 font-medium text-slate-900">
-                        {produto.nome}
-                      </td>
+                    <td className="px-5 py-4 text-slate-600">
+                      {produto.codigo}
+                    </td>
 
-                      <td className="px-5 py-4 text-slate-600">
-                        {produto.codigo}
-                      </td>
+                    <td className="px-5 py-4 text-slate-600">
+                      {produto.categoria}
+                    </td>
 
-                      <td className="px-5 py-4 text-slate-600">
-                        {produto.categoria}
-                      </td>
+                    <td className="px-5 py-4 text-slate-600">
+                      {produto.estoqueAtual}
+                    </td>
 
-                      <td className="px-5 py-4 text-slate-600">
-                        {produto.estoqueAtual}
-                      </td>
+                    <td className="px-5 py-4 text-slate-600">
+                      {produto.estoqueMinimo}
+                    </td>
 
-                      <td className="px-5 py-4 text-slate-600">
-                        {produto.estoqueMinimo}
-                      </td>
+                    <td className="px-5 py-4">
+                      <StatusProduto produto={produto} />
+                    </td>
 
-                      <td className="px-5 py-4">
-                        {!produto.ativo ? (
-                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                            Inativo
-                          </span>
-                        ) : baixoEstoque ? (
-                          <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-                            Baixo estoque
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                            Normal
-                          </span>
+                    <td className="px-5 py-4">
+                      <div className="relative flex items-center gap-3">
+                        <button
+                          onClick={() => abrirEdicao(produto)}
+                          className="text-sm font-semibold text-blue-600 hover:text-blue-800"
+                        >
+                          Editar
+                        </button>
+
+                        <button
+                          onClick={() => alternarMenuProduto(produto.id)}
+                          className="text-sm font-semibold text-slate-500 hover:text-slate-700"
+                        >
+                          Mais opções
+                        </button>
+
+                        {menuAbertoProdutoId === produto.id && (
+                          <div className="absolute right-0 top-7 z-10 w-36 rounded-xl border border-slate-100 bg-white p-2 shadow-lg">
+                            {produto.ativo ? (
+                              <button
+                                onClick={() =>
+                                  alterarStatusProduto(produto, false)
+                                }
+                                className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-600 hover:bg-red-50"
+                              >
+                                Inativar
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() =>
+                                  alterarStatusProduto(produto, true)
+                                }
+                                className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-green-700 hover:bg-green-50"
+                              >
+                                Reativar
+                              </button>
+                            )}
+                          </div>
                         )}
-                      </td>
-
-                      <td className="px-5 py-4">
-                        <div className="flex flex-wrap gap-3">
-                          <button
-                            onClick={() => abrirEdicao(produto)}
-                            className="text-sm font-semibold text-blue-600 hover:text-blue-800"
-                          >
-                            Editar
-                          </button>
-
-                          {produto.ativo && (
-                            <button
-                              onClick={() => inativarProduto(produto.id)}
-                              className="text-sm font-semibold text-red-600 hover:text-red-800"
-                            >
-                              Inativar
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
 
               {!carregandoProdutos && produtosFiltrados.length === 0 && (
                 <tr>
@@ -462,6 +499,103 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="md:hidden p-4 space-y-3">
+          {carregandoProdutos && (
+            <p className="text-center text-sm text-slate-500">
+              Carregando produtos...
+            </p>
+          )}
+
+          {!carregandoProdutos &&
+            produtosFiltrados.map((produto) => (
+              <div
+                key={produto.id}
+                className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-slate-900">
+                      {produto.nome}
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      {produto.codigo}
+                    </p>
+                  </div>
+
+                  <StatusProduto produto={produto} />
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">Estoque</p>
+                    <p className="text-xl font-bold text-slate-900">
+                      {produto.estoqueAtual}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">Mínimo</p>
+                    <p className="text-xl font-bold text-slate-900">
+                      {produto.estoqueMinimo}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <p className="text-xs text-slate-500">Categoria</p>
+                  <p className="text-sm text-slate-700">
+                    {produto.categoria}
+                  </p>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <button
+                    onClick={() => abrirEdicao(produto)}
+                    className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    Editar
+                  </button>
+
+                  <div className="relative">
+                    <button
+                      onClick={() => alternarMenuProduto(produto.id)}
+                      className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200"
+                    >
+                      Mais opções
+                    </button>
+
+                    {menuAbertoProdutoId === produto.id && (
+                      <div className="absolute right-0 top-11 z-10 w-36 rounded-xl border border-slate-100 bg-white p-2 shadow-lg">
+                        {produto.ativo ? (
+                          <button
+                            onClick={() => alterarStatusProduto(produto, false)}
+                            className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-600 hover:bg-red-50"
+                          >
+                            Inativar
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => alterarStatusProduto(produto, true)}
+                            className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-green-700 hover:bg-green-50"
+                          >
+                            Reativar
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+          {!carregandoProdutos && produtosFiltrados.length === 0 && (
+            <p className="text-center text-sm text-slate-500">
+              Nenhum produto encontrado.
+            </p>
+          )}
         </div>
       </div>
     </section>

@@ -136,6 +136,24 @@ function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
     return `Ano inteiro de ${anoSelecionado}`
   }
 
+  function StatusEstoque({ item }) {
+    const baixoEstoque = item.estoqueAtual < item.estoqueMinimo
+
+    if (baixoEstoque) {
+      return (
+        <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+          Baixo estoque
+        </span>
+      )
+    }
+
+    return (
+      <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+        Normal
+      </span>
+    )
+  }
+
   return (
     <section>
       <div>
@@ -154,7 +172,7 @@ function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
         </p>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-5">
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <p className="text-sm text-slate-500">Entradas no período</p>
           <strong className="mt-2 block text-3xl text-slate-900">
@@ -186,7 +204,7 @@ function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
         </div>
       </div>
 
-      <div className="mt-6 bg-white rounded-2xl shadow-sm p-5 grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="mt-6 bg-white rounded-2xl shadow-sm p-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <select
           value={diaSelecionado}
           onChange={(event) => setDiaSelecionado(event.target.value)}
@@ -272,7 +290,7 @@ function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-full flex items-center justify-center rounded-xl bg-slate-50 border border-dashed border-slate-300">
+            <div className="h-full flex items-center justify-center rounded-xl bg-slate-50 border border-dashed border-slate-300 px-4 text-center">
               <p className="text-sm text-slate-500">
                 Nenhuma saída registrada no período selecionado.
               </p>
@@ -282,7 +300,17 @@ function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
       </div>
 
       <div className="mt-6 bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="px-6 py-5 border-b border-slate-100">
+          <h3 className="text-xl font-bold text-slate-900">
+            Detalhamento por produto
+          </h3>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Entradas, saídas e estoque atual no período selecionado.
+          </p>
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-500">
               <tr className="text-left">
@@ -296,45 +324,33 @@ function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
             </thead>
 
             <tbody>
-              {relatorioPorProduto.map((item) => {
-                const baixoEstoque = item.estoqueAtual < item.estoqueMinimo
+              {relatorioPorProduto.map((item) => (
+                <tr key={item.produto} className="border-t border-slate-100">
+                  <td className="px-5 py-4 font-medium text-slate-900">
+                    {item.produto}
+                  </td>
 
-                return (
-                  <tr key={item.produto} className="border-t border-slate-100">
-                    <td className="px-5 py-4 font-medium text-slate-900">
-                      {item.produto}
-                    </td>
+                  <td className="px-5 py-4 text-slate-600">
+                    {item.categoria}
+                  </td>
 
-                    <td className="px-5 py-4 text-slate-600">
-                      {item.categoria}
-                    </td>
+                  <td className="px-5 py-4 text-slate-600">
+                    {item.entradas}
+                  </td>
 
-                    <td className="px-5 py-4 text-slate-600">
-                      {item.entradas}
-                    </td>
+                  <td className="px-5 py-4 text-slate-600">
+                    {item.saidas}
+                  </td>
 
-                    <td className="px-5 py-4 text-slate-600">
-                      {item.saidas}
-                    </td>
+                  <td className="px-5 py-4 text-slate-600">
+                    {item.estoqueAtual}
+                  </td>
 
-                    <td className="px-5 py-4 text-slate-600">
-                      {item.estoqueAtual}
-                    </td>
-
-                    <td className="px-5 py-4">
-                      {baixoEstoque ? (
-                        <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-                          Baixo estoque
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                          Normal
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
+                  <td className="px-5 py-4">
+                    <StatusEstoque item={item} />
+                  </td>
+                </tr>
+              ))}
 
               {relatorioPorProduto.length === 0 && (
                 <tr>
@@ -348,6 +364,58 @@ function Relatorios({ produtos, movimentacoes, empresaAtiva }) {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="md:hidden p-4 space-y-3">
+          {relatorioPorProduto.map((item) => (
+            <div
+              key={item.produto}
+              className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-slate-900">
+                    {item.produto}
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    {item.categoria}
+                  </p>
+                </div>
+
+                <StatusEstoque item={item} />
+              </div>
+
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">Entradas</p>
+                  <p className="text-lg font-bold text-slate-900">
+                    {item.entradas}
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">Saídas</p>
+                  <p className="text-lg font-bold text-slate-900">
+                    {item.saidas}
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">Estoque</p>
+                  <p className="text-lg font-bold text-slate-900">
+                    {item.estoqueAtual}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {relatorioPorProduto.length === 0 && (
+            <p className="text-center text-sm text-slate-500">
+              Nenhum produto encontrado no relatório.
+            </p>
+          )}
         </div>
       </div>
     </section>
