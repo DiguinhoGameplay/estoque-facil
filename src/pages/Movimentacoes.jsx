@@ -12,7 +12,8 @@ function Movimentacoes({
 }) {
   const [salvando, setSalvando] = useState(false)
   const [estornandoId, setEstornandoId] = useState(null)
-  const [mostrarHistoricoCompleto, setMostrarHistoricoCompleto] = useState(false)
+  const [mostrarHistoricoCompleto, setMostrarHistoricoCompleto] =
+    useState(false)
 
   const [filtroProduto, setFiltroProduto] = useState('')
   const [filtroTipo, setFiltroTipo] = useState('')
@@ -24,6 +25,9 @@ function Movimentacoes({
     useState(false)
   const [historicoBuscado, setHistoricoBuscado] = useState(false)
 
+  const [buscaProdutoMovimentacao, setBuscaProdutoMovimentacao] = useState('')
+  const [mostrarSugestoesProduto, setMostrarSugestoesProduto] = useState(false)
+
   const [novaMovimentacao, setNovaMovimentacao] = useState({
     produtoId: '',
     tipo: 'entrada',
@@ -33,6 +37,19 @@ function Movimentacoes({
   })
 
   const produtosAtivos = produtos.filter((produto) => produto.ativo)
+
+  const produtosFiltradosMovimentacao = produtosAtivos.filter((produto) => {
+    const busca = buscaProdutoMovimentacao.toLowerCase().trim()
+
+    if (!busca) return true
+
+    return (
+      produto.nome.toLowerCase().includes(busca) ||
+      produto.codigo.toLowerCase().includes(busca) ||
+      produto.categoria.toLowerCase().includes(busca)
+    )
+  })
+
   const movimentacoesRecentes = movimentacoes.slice(0, 10)
 
   const produtoSelecionado = produtos.find(
@@ -63,6 +80,16 @@ function Movimentacoes({
       ...novaMovimentacao,
       [campo]: valor,
     })
+  }
+
+  function selecionarProduto(produto) {
+    setNovaMovimentacao({
+      ...novaMovimentacao,
+      produtoId: produto.id,
+    })
+
+    setBuscaProdutoMovimentacao(produto.nome)
+    setMostrarSugestoesProduto(false)
   }
 
   function formatarMovimentacao(movimentacao) {
@@ -224,6 +251,8 @@ function Movimentacoes({
       observacao: '',
     })
 
+    setBuscaProdutoMovimentacao('')
+    setMostrarSugestoesProduto(false)
     setSalvando(false)
   }
 
@@ -438,8 +467,6 @@ function Movimentacoes({
         <p className="mt-2 text-slate-600">
           Registre entradas e saídas de produtos no estoque.
         </p>
-
-        
       </div>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -458,21 +485,53 @@ function Movimentacoes({
                 Produto
               </label>
 
-              <select
-                value={novaMovimentacao.produtoId}
-                onChange={(event) =>
-                  atualizarCampo('produtoId', event.target.value)
-                }
-                className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              >
-                <option value="">Selecione um produto</option>
+              <div className="relative mt-1">
+                <input
+                  type="text"
+                  value={buscaProdutoMovimentacao}
+                  onChange={(event) => {
+                    setBuscaProdutoMovimentacao(event.target.value)
+                    atualizarCampo('produtoId', '')
+                    setMostrarSugestoesProduto(true)
+                  }}
+                  onFocus={() => setMostrarSugestoesProduto(true)}
+                  placeholder="Digite para buscar um produto"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
 
-                {produtosAtivos.map((produto) => (
-                  <option key={produto.id} value={produto.id}>
-                    {produto.nome} — Estoque: {produto.estoqueAtual}
-                  </option>
-                ))}
-              </select>
+                {mostrarSugestoesProduto && (
+                  <div className="absolute z-30 mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                    {produtosFiltradosMovimentacao.length > 0 ? (
+                      produtosFiltradosMovimentacao.map((produto) => (
+                        <button
+                          key={produto.id}
+                          type="button"
+                          onClick={() => selecionarProduto(produto)}
+                          className="w-full border-b border-slate-100 px-4 py-3 text-left hover:bg-slate-50 last:border-b-0"
+                        >
+                          <p className="font-semibold text-slate-900">
+                            {produto.nome}
+                          </p>
+
+                          <p className="mt-1 text-xs text-slate-500">
+                            Estoque atual: {produto.estoqueAtual}
+                          </p>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-4 py-3 text-sm text-slate-500">
+                        Nenhum produto encontrado.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {novaMovimentacao.produtoId && (
+                  <p className="mt-2 text-xs font-medium text-green-700">
+                    Produto selecionado.
+                  </p>
+                )}
+              </div>
             </div>
 
             <div>
@@ -635,12 +694,15 @@ function Movimentacoes({
             </h3>
 
             <p className="mt-1 text-sm text-slate-500">
-              As 10 movimentações mais recentes. Para corrigir um lançamento, use a opção de estorno.
+              As 10 movimentações mais recentes. Para corrigir um lançamento,
+              use a opção de estorno.
             </p>
           </div>
 
           <button
-            onClick={() => setMostrarHistoricoCompleto(!mostrarHistoricoCompleto)}
+            onClick={() =>
+              setMostrarHistoricoCompleto(!mostrarHistoricoCompleto)
+            }
             className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
           >
             {mostrarHistoricoCompleto
@@ -669,7 +731,8 @@ function Movimentacoes({
             </h3>
 
             <p className="mt-1 text-sm text-slate-500">
-              Use os filtros e clique em buscar. A consulta retorna até 100 movimentações por vez.
+              Use os filtros e clique em buscar. A consulta retorna até 100
+              movimentações por vez.
             </p>
           </div>
 
