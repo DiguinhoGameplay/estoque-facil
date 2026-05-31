@@ -2,10 +2,16 @@ import { useState } from 'react'
 import { supabase } from '../services/supabase'
 
 function Login({ onLogin }) {
+  const [modo, setModo] = useState('login')
+
+  const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
+  const [codigoConvite, setCodigoConvite] = useState('')
+
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState('')
+  const [sucesso, setSucesso] = useState('')
 
   async function buscarEmpresasDoUsuario(usuarioId) {
     const { data, error } = await supabase
@@ -35,6 +41,7 @@ function Login({ onLogin }) {
 
   async function entrar() {
     setErro('')
+    setSucesso('')
 
     if (!email.trim()) {
       setErro('Informe seu e-mail.')
@@ -49,7 +56,7 @@ function Login({ onLogin }) {
     setCarregando(true)
 
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password: senha,
     })
 
@@ -94,6 +101,110 @@ function Login({ onLogin }) {
     setCarregando(false)
   }
 
+  async function cadastrar() {
+    setErro('')
+    setSucesso('')
+
+    if (!nome.trim()) {
+      setErro('Informe seu nome.')
+      return
+    }
+
+    if (!email.trim()) {
+      setErro('Informe seu e-mail.')
+      return
+    }
+
+    if (!senha.trim()) {
+      setErro('Informe uma senha.')
+      return
+    }
+
+    if (senha.length < 6) {
+      setErro('A senha precisa ter pelo menos 6 caracteres.')
+      return
+    }
+
+    if (!codigoConvite.trim()) {
+      setErro('Informe o código da empresa.')
+      return
+    }
+
+    setCarregando(true)
+
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password: senha,
+    })
+
+    if (error) {
+      console.error('Erro ao criar conta:', error)
+      setErro(error.message || 'Erro ao criar conta.')
+      setCarregando(false)
+      return
+    }
+
+    const usuarioCriado = data.user
+
+    if (!usuarioCriado) {
+      setErro('Não foi possível criar o usuário.')
+      setCarregando(false)
+      return
+    }
+
+    const { error: erroLogin } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password: senha,
+    })
+
+    if (erroLogin) {
+      setErro('Conta criada, mas não foi possível entrar automaticamente. Tente fazer login.')
+      setCarregando(false)
+      return
+    }
+
+    const { error: erroVinculo } = await supabase.rpc(
+      'vincular_usuario_por_convite',
+      {
+        p_nome: nome.trim(),
+        p_codigo_convite: codigoConvite.trim().toUpperCase(),
+      }
+    )
+
+    if (erroVinculo) {
+      console.error('Erro ao vincular usuário:', erroVinculo)
+      await supabase.auth.signOut()
+      setErro(erroVinculo.message || 'Código de convite inválido.')
+      setCarregando(false)
+      return
+    }
+
+    const { data: usuarioSistema, error: erroUsuario } = await supabase
+      .from('usuarios')
+      .select('id, empresa_id, nome, email, perfil, ativo')
+      .eq('id', usuarioCriado.id)
+      .single()
+
+    if (erroUsuario || !usuarioSistema) {
+      await supabase.auth.signOut()
+      setErro('Conta criada, mas não foi possível carregar o usuário do sistema.')
+      setCarregando(false)
+      return
+    }
+
+    const empresas = await buscarEmpresasDoUsuario(usuarioSistema.id)
+
+    setSucesso('Conta criada com sucesso.')
+    onLogin(usuarioSistema, empresas)
+    setCarregando(false)
+  }
+
+  function alternarModo(novoModo) {
+    setModo(novoModo)
+    setErro('')
+    setSucesso('')
+  }
+
   return (
     <main className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
       <section className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
@@ -111,7 +222,48 @@ function Login({ onLogin }) {
           </p>
         </div>
 
-        <form className="mt-8 space-y-4">
+        <div className="mt-8 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
+          <button
+            type="button"
+            onClick={() => alternarModo('login')}
+            className={
+              modo === 'login'
+                ? 'rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm'
+                : 'rounded-lg px-4 py-2 text-sm font-semibold text-slate-500'
+            }
+          >
+            Entrar
+          </button>
+
+          <button
+            type="button"
+            onClick={() => alternarModo('cadastro')}
+            className={
+              modo === 'cadastro'
+                ? 'rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm'
+                : 'rounded-lg px-4 py-2 text-sm font-semibold text-slate-500'
+            }
+          >
+            Criar conta
+          </button>
+        </div>
+
+        <form className="mt-6 space-y-4">
+          {modo === 'cadastro' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Nome
+              </label>
+              <input
+                type="text"
+                value={nome}
+                onChange={(event) => setNome(event.target.value)}
+                placeholder="Digite seu nome"
+                className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-slate-700">
               E-mail
@@ -138,6 +290,23 @@ function Login({ onLogin }) {
             />
           </div>
 
+          {modo === 'cadastro' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Código da empresa
+              </label>
+              <input
+                type="text"
+                value={codigoConvite}
+                onChange={(event) => setCodigoConvite(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Use o código recebido pelo responsável da empresa.
+              </p>
+            </div>
+          )}
+
           {erro && (
             <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3">
               <p className="text-sm font-medium text-red-700">
@@ -146,13 +315,27 @@ function Login({ onLogin }) {
             </div>
           )}
 
+          {sucesso && (
+            <div className="rounded-xl bg-green-50 border border-green-100 px-4 py-3">
+              <p className="text-sm font-medium text-green-700">
+                {sucesso}
+              </p>
+            </div>
+          )}
+
           <button
             type="button"
-            onClick={entrar}
+            onClick={modo === 'login' ? entrar : cadastrar}
             disabled={carregando}
             className="w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700 transition disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {carregando ? 'Entrando...' : 'Entrar'}
+            {carregando
+              ? modo === 'login'
+                ? 'Entrando...'
+                : 'Criando conta...'
+              : modo === 'login'
+                ? 'Entrar'
+                : 'Criar conta'}
           </button>
         </form>
 
