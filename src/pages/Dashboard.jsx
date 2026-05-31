@@ -118,7 +118,12 @@ function Dashboard({
   const mesAtual = String(dataAtual.getMonth() + 1).padStart(2, '0')
   const anoAtual = String(dataAtual.getFullYear())
 
-  const movimentacoesDoMes = movimentacoes.filter((movimentacao) => {
+  const movimentacoesValidas = movimentacoes.filter(
+    (movimentacao) =>
+      !movimentacao.estornada && !movimentacao.movimentacaoOriginalId
+  )
+
+  const movimentacoesDoMes = movimentacoesValidas.filter((movimentacao) => {
     const [ano, mes] = movimentacao.data.split('-')
 
     return ano === anoAtual && mes === mesAtual
@@ -149,7 +154,7 @@ function Dashboard({
     }, [])
     .sort((a, b) => b.quantidade - a.quantidade)[0]
 
-  const ultimasMovimentacoes = [...movimentacoes].slice(0, 5)
+  const ultimasMovimentacoes = [...movimentacoesValidas].slice(0, 5)
 
   function mudarTela(tela) {
     setTelaAtual(tela)
@@ -194,19 +199,15 @@ function Dashboard({
           </h2>
 
           <p className="mt-2 text-slate-600">
-            Resumo geral do estoque da empresa.
+            Resumo geral do estoque.
           </p>
         </div>
 
         <div className="mb-8 bg-white rounded-2xl shadow-sm overflow-hidden">
           <div className="px-6 py-5 border-b border-slate-100">
             <h3 className="text-xl font-bold text-slate-900">
-              Produtos ativos em estoque
+              Estoque
             </h3>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Consulta rápida para o comercial verificar disponibilidade.
-            </p>
           </div>
 
           <div className="hidden md:block overflow-x-auto">

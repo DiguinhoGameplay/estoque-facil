@@ -38,4 +38,51 @@
     page-break-inside: avoid;
     break-inside: avoid;
   }
+  @media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  body {
+    background: white;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  header,
+  nav,
+  button,
+  select,
+  input {
+    display: none !important;
+  }
+
+  main {
+    background: white !important;
+  }
+
+  section {
+    padding: 0 !important;
+  }
+
+  .shadow-sm,
+  .shadow-lg {
+    box-shadow: none !important;
+  }
+
+  .bg-slate-100 {
+    background: white !important;
+  }
+
+  .rounded-2xl,
+  .rounded-xl {
+    border-radius: 0 !important;
+  }
+
+  .recharts-responsive-container {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
 }

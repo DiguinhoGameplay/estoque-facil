@@ -217,9 +217,7 @@ function Login({ onLogin }) {
             Estoque Fácil
           </h1>
 
-          <p className="mt-3 text-slate-600">
-            Controle produtos, entradas, saídas, estoque mínimo e relatórios mensais em um só lugar.
-          </p>
+          
         </div>
 
         <div className="mt-8 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
@@ -339,9 +337,7 @@ function Login({ onLogin }) {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-slate-500">
-          MVP inicial em desenvolvimento
-        </p>
+        
       </section>
     </main>
   )
