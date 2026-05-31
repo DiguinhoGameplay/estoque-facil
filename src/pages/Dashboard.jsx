@@ -13,6 +13,7 @@ function Dashboard({
 }) {
   const [mostrarTodosProdutosDashboard, setMostrarTodosProdutosDashboard] =
     useState(false)
+  const [buscaProdutoDashboard, setBuscaProdutoDashboard] = useState('')
   const [telaAtual, setTelaAtual] = useState('dashboard')
   const [menuMobileAberto, setMenuMobileAberto] = useState(false)
 
@@ -25,6 +26,7 @@ function Dashboard({
   useEffect(() => {
     if (empresaAtiva?.id) {
       setMostrarTodosProdutosDashboard(false)
+      setBuscaProdutoDashboard('')
       carregarProdutos()
       carregarMovimentacoes()
     }
@@ -37,6 +39,7 @@ function Dashboard({
       .from('produtos')
       .select('*')
       .eq('empresa_id', empresaAtiva.id)
+      .order('ordem_exibicao', { ascending: true })
       .order('nome', { ascending: true })
 
     if (error) {
@@ -56,6 +59,7 @@ function Dashboard({
       estoqueMinimo: produto.estoque_minimo,
       observacao: produto.observacao || '',
       ativo: produto.ativo,
+      ordemExibicao: produto.ordem_exibicao ?? 9999,
     }))
 
     setProdutos(produtosFormatados)
@@ -104,24 +108,47 @@ function Dashboard({
     setCarregandoMovimentacoes(false)
   }
 
-  const produtosAtivos = produtos.filter((produto) => produto.ativo)
+  const produtosAtivos = produtos
+    .filter((produto) => produto.ativo)
+    .sort((a, b) => {
+      const ordemA = a.ordemExibicao ?? 9999
+      const ordemB = b.ordemExibicao ?? 9999
+
+      if (ordemA !== ordemB) {
+        return ordemA - ordemB
+      }
+
+      return a.nome.localeCompare(b.nome, 'pt-BR')
+    })
+
+  const produtosFiltradosDashboard = produtosAtivos.filter((produto) => {
+    const busca = buscaProdutoDashboard.toLowerCase().trim()
+
+    if (!busca) return true
+
+    return (
+      produto.nome.toLowerCase().includes(busca) ||
+      produto.codigo.toLowerCase().includes(busca) ||
+      produto.categoria.toLowerCase().includes(busca)
+    )
+  })
 
   const produtosDashboard = mostrarTodosProdutosDashboard
-    ? produtosAtivos
-    : produtosAtivos.slice(0, 10)
+    ? produtosFiltradosDashboard
+    : produtosFiltradosDashboard.slice(0, 10)
 
   const produtosBaixoEstoque = produtosAtivos.filter(
     (produto) => produto.estoqueAtual < produto.estoqueMinimo
   )
 
-  const dataAtual = new Date()
-  const mesAtual = String(dataAtual.getMonth() + 1).padStart(2, '0')
-  const anoAtual = String(dataAtual.getFullYear())
-
   const movimentacoesValidas = movimentacoes.filter(
     (movimentacao) =>
       !movimentacao.estornada && !movimentacao.movimentacaoOriginalId
   )
+
+  const dataAtual = new Date()
+  const mesAtual = String(dataAtual.getMonth() + 1).padStart(2, '0')
+  const anoAtual = String(dataAtual.getFullYear())
 
   const movimentacoesDoMes = movimentacoesValidas.filter((movimentacao) => {
     const [ano, mes] = movimentacao.data.split('-')
@@ -205,9 +232,28 @@ function Dashboard({
 
         <div className="mb-8 bg-white rounded-2xl shadow-sm overflow-hidden">
           <div className="px-6 py-5 border-b border-slate-100">
-            <h3 className="text-xl font-bold text-slate-900">
-              Estoque
-            </h3>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">
+                  Estoque
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Produtos organizados conforme prioridade comercial.
+                </p>
+              </div>
+
+              <input
+                type="text"
+                value={buscaProdutoDashboard}
+                onChange={(event) => {
+                  setBuscaProdutoDashboard(event.target.value)
+                  setMostrarTodosProdutosDashboard(false)
+                }}
+                placeholder="Buscar produto..."
+                className="w-full md:w-80 rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
           </div>
 
           <div className="hidden md:block overflow-x-auto">
@@ -257,16 +303,19 @@ function Dashboard({
                     )
                   })}
 
-                {!carregandoProdutos && produtosAtivos.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan="2"
-                      className="px-6 py-8 text-center text-slate-500"
-                    >
-                      Nenhum produto ativo cadastrado.
-                    </td>
-                  </tr>
-                )}
+                {!carregandoProdutos &&
+                  produtosFiltradosDashboard.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan="2"
+                        className="px-6 py-8 text-center text-slate-500"
+                      >
+                        {buscaProdutoDashboard
+                          ? 'Nenhum produto encontrado para essa busca.'
+                          : 'Nenhum produto ativo cadastrado.'}
+                      </td>
+                    </tr>
+                  )}
               </tbody>
             </table>
           </div>
@@ -305,14 +354,17 @@ function Dashboard({
                 )
               })}
 
-            {!carregandoProdutos && produtosAtivos.length === 0 && (
-              <p className="text-center text-sm text-slate-500">
-                Nenhum produto ativo cadastrado.
-              </p>
-            )}
+            {!carregandoProdutos &&
+              produtosFiltradosDashboard.length === 0 && (
+                <p className="text-center text-sm text-slate-500">
+                  {buscaProdutoDashboard
+                    ? 'Nenhum produto encontrado para essa busca.'
+                    : 'Nenhum produto ativo cadastrado.'}
+                </p>
+              )}
           </div>
 
-          {produtosAtivos.length > 10 && (
+          {produtosFiltradosDashboard.length > 10 && (
             <div className="px-6 py-4 border-t border-slate-100 text-center">
               <button
                 onClick={() =>
@@ -324,7 +376,7 @@ function Dashboard({
               >
                 {mostrarTodosProdutosDashboard
                   ? 'Ver menos produtos'
-                  : `Ver mais produtos (${produtosAtivos.length - 10})`}
+                  : `Ver mais produtos (${produtosFiltradosDashboard.length - 10})`}
               </button>
             </div>
           )}
@@ -521,7 +573,7 @@ function Dashboard({
 
               <button
                 onClick={onLogout}
-                className="mt-4 text-xs font-medium text-slate-400 hover:text-red-600"
+                className="rounded-xl px-4 py-2 text-xs font-semibold text-slate-400 hover:text-red-600"
               >
                 Sair da conta
               </button>
@@ -581,9 +633,9 @@ function Dashboard({
 
               <button
                 onClick={onLogout}
-                className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-700"
+                className="mt-2 text-sm font-medium text-slate-400 hover:text-red-600"
               >
-                Sair
+                Sair da conta
               </button>
             </nav>
           )}
