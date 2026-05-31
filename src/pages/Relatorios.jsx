@@ -160,133 +160,149 @@ function Relatorios({ empresaAtiva }) {
     )
   }
 
-  function imprimirRelatorio() {
-    window.print()
+  function gerarPdfRelatorio() {
+    const pdf = new jsPDF('p', 'mm', 'a4')
+
+    const margem = 15
+    let y = 18
+
+    const larguraPagina = pdf.internal.pageSize.getWidth()
+    const larguraUtil = larguraPagina - margem * 2
+
+    const titulo = 'Relatório'
+    const periodo = `Período analisado: ${gerarTextoPeriodo()}`
+
+    pdf.setTextColor(15, 23, 42)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(18)
+    pdf.text(titulo, margem, y)
+
+    y += 8
+
+    pdf.setTextColor(71, 85, 105)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(10)
+    pdf.text(periodo, margem, y)
+
+    y += 16
+
+    const cards = [
+      {
+        titulo: 'Entradas no período',
+        valor: String(totalEntradas),
+      },
+      {
+        titulo: 'Saídas no período',
+        valor: String(totalSaidas),
+      },
+      {
+        titulo: 'Produto mais vendido',
+        valor:
+          produtoMaisVendido && produtoMaisVendido.saidas > 0
+            ? produtoMaisVendido.produto
+            : 'Sem vendas',
+      },
+    ]
+
+    const larguraCard = larguraUtil / 3 - 4
+
+    cards.forEach((card, index) => {
+      const x = margem + index * (larguraCard + 6)
+
+      pdf.setDrawColor(226, 232, 240)
+      pdf.setFillColor(255, 255, 255)
+      pdf.roundedRect(x, y, larguraCard, 28, 3, 3, 'FD')
+
+      pdf.setTextColor(71, 85, 105)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(9)
+      pdf.text(card.titulo, x + 4, y + 8)
+
+      pdf.setTextColor(15, 23, 42)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(index === 2 ? 10 : 16)
+
+      const valorQuebrado = pdf.splitTextToSize(card.valor, larguraCard - 8)
+      pdf.text(valorQuebrado, x + 4, y + 18)
+    })
+
+    y += 45
+
+    pdf.setTextColor(15, 23, 42)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(14)
+    pdf.text('Gráfico de Vendas', margem, y)
+
+    y += 10
+
+    if (dadosGraficoMaisVendidos.length === 0) {
+      pdf.setTextColor(71, 85, 105)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(10)
+      pdf.text('Nenhuma saída registrada no período selecionado.', margem, y)
+    } else {
+      const alturaGrafico = 90
+      const larguraGrafico = larguraUtil
+      const xGrafico = margem
+      const yGrafico = y
+
+      const maiorValor = Math.max(
+        ...dadosGraficoMaisVendidos.map((item) => item.saidas)
+      )
+
+      const quantidadeBarras = dadosGraficoMaisVendidos.length
+      const espacamento = 4
+      const larguraBarra =
+        (larguraGrafico - espacamento * (quantidadeBarras - 1)) /
+        quantidadeBarras
+
+      pdf.setDrawColor(226, 232, 240)
+
+      for (let i = 0; i <= 4; i++) {
+        const yLinha = yGrafico + (alturaGrafico / 4) * i
+        pdf.line(xGrafico, yLinha, xGrafico + larguraGrafico, yLinha)
+      }
+
+      pdf.setDrawColor(148, 163, 184)
+      pdf.line(
+        xGrafico,
+        yGrafico + alturaGrafico,
+        xGrafico + larguraGrafico,
+        yGrafico + alturaGrafico
+      )
+
+      dadosGraficoMaisVendidos.forEach((item, index) => {
+        const alturaBarra = (item.saidas / maiorValor) * (alturaGrafico - 14)
+        const x = xGrafico + index * (larguraBarra + espacamento)
+        const yBarra = yGrafico + alturaGrafico - alturaBarra
+
+        pdf.setFillColor(37, 99, 235)
+        pdf.roundedRect(x, yBarra, larguraBarra, alturaBarra, 1.5, 1.5, 'F')
+
+        pdf.setTextColor(15, 23, 42)
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(8)
+        pdf.text(String(item.saidas), x, yBarra - 2)
+
+        pdf.setTextColor(71, 85, 105)
+        pdf.setFont('helvetica', 'normal')
+        pdf.setFontSize(8)
+
+        const nomeProduto =
+          item.nome.length > 12 ? `${item.nome.slice(0, 12)}...` : item.nome
+
+        pdf.text(nomeProduto, x, yGrafico + alturaGrafico + 6)
+      })
+    }
+
+    return pdf
   }
 
   function salvarRelatorioPdf() {
     try {
       setGerandoPdf(true)
 
-      const pdf = new jsPDF('p', 'mm', 'a4')
-
-      const margem = 15
-      let y = 18
-
-      const larguraPagina = pdf.internal.pageSize.getWidth()
-      const larguraUtil = larguraPagina - margem * 2
-
-      const titulo = 'Relatório'
-      const periodo = `Período analisado: ${gerarTextoPeriodo()}`
-
-      pdf.setTextColor(15, 23, 42)
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(18)
-      pdf.text(titulo, margem, y)
-
-      y += 8
-
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(10)
-      pdf.text(periodo, margem, y)
-
-      y += 16
-
-      const cards = [
-        {
-          titulo: 'Entradas no período',
-          valor: String(totalEntradas),
-        },
-        {
-          titulo: 'Saídas no período',
-          valor: String(totalSaidas),
-        },
-        {
-          titulo: 'Produto mais vendido',
-          valor:
-            produtoMaisVendido && produtoMaisVendido.saidas > 0
-              ? produtoMaisVendido.produto
-              : 'Sem vendas',
-        },
-      ]
-
-      const larguraCard = larguraUtil / 3 - 4
-
-      cards.forEach((card, index) => {
-        const x = margem + index * (larguraCard + 6)
-
-        pdf.setDrawColor(230, 230, 230)
-        pdf.roundedRect(x, y, larguraCard, 28, 3, 3)
-
-        pdf.setFont('helvetica', 'normal')
-        pdf.setFontSize(9)
-        pdf.text(card.titulo, x + 4, y + 8)
-
-        pdf.setFont('helvetica', 'bold')
-        pdf.setFontSize(index === 2 ? 10 : 16)
-
-        const valorQuebrado = pdf.splitTextToSize(card.valor, larguraCard - 8)
-        pdf.text(valorQuebrado, x + 4, y + 18)
-      })
-
-      y += 45
-
-      pdf.setTextColor(15, 23, 42)
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(14)
-      pdf.text('Gráfico de Vendas', margem, y)
-
-      y += 10
-
-      if (dadosGraficoMaisVendidos.length === 0) {
-        pdf.setFont('helvetica', 'normal')
-        pdf.setFontSize(10)
-        pdf.text(
-          'Nenhuma saída registrada no período selecionado.',
-          margem,
-          y
-        )
-      } else {
-        const alturaGrafico = 85
-        const larguraGrafico = larguraUtil
-        const xGrafico = margem
-        const yGrafico = y
-
-        const maiorValor = Math.max(
-          ...dadosGraficoMaisVendidos.map((item) => item.saidas)
-        )
-
-        const quantidadeBarras = dadosGraficoMaisVendidos.length
-        const espacamento = 4
-        const larguraBarra =
-          (larguraGrafico - espacamento * (quantidadeBarras - 1)) /
-          quantidadeBarras
-
-        pdf.setDrawColor(220, 220, 220)
-        pdf.line(xGrafico, yGrafico + alturaGrafico, xGrafico + larguraGrafico, yGrafico + alturaGrafico)
-        pdf.line(xGrafico, yGrafico, xGrafico, yGrafico + alturaGrafico)
-
-        dadosGraficoMaisVendidos.forEach((item, index) => {
-          const alturaBarra = (item.saidas / maiorValor) * (alturaGrafico - 12)
-          const x = xGrafico + index * (larguraBarra + espacamento)
-          const yBarra = yGrafico + alturaGrafico - alturaBarra
-
-          pdf.setFillColor(37, 99, 235)
-          pdf.roundedRect(x, yBarra, larguraBarra, alturaBarra, 1.5, 1.5, 'F')
-
-          pdf.setFont('helvetica', 'normal')
-          pdf.setFontSize(8)
-
-          const nomeProduto =
-            item.nome.length > 12 ? `${item.nome.slice(0, 12)}...` : item.nome
-
-          pdf.text(nomeProduto, x, yGrafico + alturaGrafico + 6)
-
-          pdf.setFont('helvetica', 'bold')
-          pdf.setFontSize(8)
-          pdf.text(String(item.saidas), x, yBarra - 2)
-        })
-      }
+      const pdf = gerarPdfRelatorio()
 
       const nomeArquivo = `relatorio-estoque-${anoSelecionado}${
         mesSelecionado ? `-${mesSelecionado}` : ''
@@ -298,6 +314,20 @@ function Relatorios({ empresaAtiva }) {
       alert('Erro ao gerar PDF. Verifique o console do navegador.')
     } finally {
       setGerandoPdf(false)
+    }
+  }
+
+  function imprimirRelatorio() {
+    try {
+      const pdf = gerarPdfRelatorio()
+
+      pdf.autoPrint()
+
+      const url = pdf.output('bloburl')
+      window.open(url, '_blank')
+    } catch (error) {
+      console.error('Erro ao preparar impressão:', error)
+      alert('Erro ao preparar impressão. Verifique o console do navegador.')
     }
   }
 
