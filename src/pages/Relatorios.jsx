@@ -483,44 +483,64 @@ function Relatorios({ empresaAtiva }) {
             </h3>
           </div>
 
-          <div className={gerandoPdf ? 'mt-6 h-72' : 'mt-6 h-80 print:h-72'}>
+          <div
+            className={
+              gerandoPdf
+                ? 'mt-6 h-72'
+                : 'mt-6 h-80 overflow-x-auto overflow-y-hidden print:h-72 print:overflow-visible'
+            }
+          >
             {carregandoRelatorio ? (
               <div className="h-full flex items-center justify-center rounded-xl bg-slate-50 border border-dashed border-slate-300 px-4 text-center">
                 <p className="text-sm text-slate-500">Carregando gráfico...</p>
               </div>
             ) : dadosGraficoMaisVendidos.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dadosGraficoMaisVendidos}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis
-                    dataKey="nome"
-                    tick={{ fill: '#475569', fontSize: 12 }}
-                    axisLine={{ stroke: '#cbd5e1' }}
-                    tickLine={false}
-                  />
+              <div
+                className={
+                  gerandoPdf
+                    ? 'h-full w-full'
+                    : 'h-full min-w-[720px] md:min-w-0 print:min-w-0'
+                }
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={dadosGraficoMaisVendidos}
+                    margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+                    barCategoryGap="22%"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
 
-                  <YAxis
-                    tick={{ fill: '#475569', fontSize: 12 }}
-                    axisLine={{ stroke: '#cbd5e1' }}
-                    tickLine={false}
-                  />
+                    <XAxis
+                      dataKey="nome"
+                      tick={{ fill: '#475569', fontSize: 12 }}
+                      axisLine={{ stroke: '#cbd5e1' }}
+                      tickLine={false}
+                    />
 
-                  <Tooltip
-                    cursor={{ fill: '#eff6ff' }}
-                    contentStyle={{
-                      borderRadius: '12px',
-                      border: '1px solid #e2e8f0',
-                      boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
-                    }}
-                  />
-                  <Bar
-                    dataKey="saidas"
-                    name="Saídas"
-                    fill="#2563eb"
-                    radius={[8, 8, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+                    <YAxis
+                      tick={{ fill: '#475569', fontSize: 12 }}
+                      axisLine={{ stroke: '#cbd5e1' }}
+                      tickLine={false}
+                    />
+
+                    <Tooltip
+                      cursor={{ fill: '#eff6ff' }}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
+                      }}
+                    />
+
+                    <Bar
+                      dataKey="saidas"
+                      name="Saídas"
+                      fill="#2563eb"
+                      radius={[8, 8, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             ) : (
               <div className="h-full flex items-center justify-center rounded-xl bg-slate-50 border border-dashed border-slate-300 px-4 text-center">
                 <p className="text-sm text-slate-500">

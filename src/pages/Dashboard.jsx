@@ -521,9 +521,9 @@ function Dashboard({
 
               <button
                 onClick={onLogout}
-                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                className="mt-4 text-xs font-medium text-slate-400 hover:text-red-600"
               >
-                Sair
+                Sair da conta
               </button>
             </nav>
           </div>
