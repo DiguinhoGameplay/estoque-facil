@@ -11,6 +11,8 @@ function Dashboard({
   setEmpresaAtiva,
   onLogout,
 }) {
+  const [mostrarTodosProdutosDashboard, setMostrarTodosProdutosDashboard] =
+    useState(false)
   const [telaAtual, setTelaAtual] = useState('dashboard')
   const [menuMobileAberto, setMenuMobileAberto] = useState(false)
 
@@ -22,6 +24,7 @@ function Dashboard({
 
   useEffect(() => {
     if (empresaAtiva?.id) {
+      setMostrarTodosProdutosDashboard(false)
       carregarProdutos()
       carregarMovimentacoes()
     }
@@ -102,6 +105,10 @@ function Dashboard({
   }
 
   const produtosAtivos = produtos.filter((produto) => produto.ativo)
+
+  const produtosDashboard = mostrarTodosProdutosDashboard
+    ? produtosAtivos
+    : produtosAtivos.slice(0, 10)
 
   const produtosBaixoEstoque = produtosAtivos.filter(
     (produto) => produto.estoqueAtual < produto.estoqueMinimo
@@ -224,7 +231,7 @@ function Dashboard({
                 )}
 
                 {!carregandoProdutos &&
-                  produtosAtivos.map((produto) => {
+                  produtosDashboard.map((produto) => {
                     const baixoEstoque =
                       produto.estoqueAtual < produto.estoqueMinimo
 
@@ -271,7 +278,7 @@ function Dashboard({
             )}
 
             {!carregandoProdutos &&
-              produtosAtivos.map((produto) => {
+              produtosDashboard.map((produto) => {
                 const baixoEstoque =
                   produto.estoqueAtual < produto.estoqueMinimo
 
@@ -303,6 +310,23 @@ function Dashboard({
               </p>
             )}
           </div>
+
+          {produtosAtivos.length > 10 && (
+            <div className="px-6 py-4 border-t border-slate-100 text-center">
+              <button
+                onClick={() =>
+                  setMostrarTodosProdutosDashboard(
+                    !mostrarTodosProdutosDashboard
+                  )
+                }
+                className="rounded-xl bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+              >
+                {mostrarTodosProdutosDashboard
+                  ? 'Ver menos produtos'
+                  : `Ver mais produtos (${produtosAtivos.length - 10})`}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
@@ -436,10 +460,6 @@ function Dashboard({
               <h1 className="text-2xl font-bold text-slate-900">
                 Estoque Fácil
               </h1>
-
-              <p className="text-sm text-slate-500">
-                Usuário: {usuarioLogado?.nome}
-              </p>
             </div>
 
             <button

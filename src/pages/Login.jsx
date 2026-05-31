@@ -167,7 +167,7 @@ function Login({ onLogin }) {
       'vincular_usuario_por_convite',
       {
         p_nome: nome.trim(),
-        p_codigo_convite: codigoConvite.trim().toUpperCase(),
+        p_codigo_convite: codigoConvite.trim(),
       }
     )
 
@@ -299,7 +299,7 @@ function Login({ onLogin }) {
                 type="text"
                 value={codigoConvite}
                 onChange={(event) => setCodigoConvite(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
               <p className="mt-1 text-xs text-slate-500">
                 Use o código recebido pelo responsável da empresa.

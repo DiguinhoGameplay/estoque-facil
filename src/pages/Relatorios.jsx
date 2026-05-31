@@ -157,23 +157,31 @@ function Relatorios({ empresaAtiva }) {
       </span>
     )
   }
+  function imprimirRelatorio() {
+    window.print()
+  }
 
   return (
     <section>
-      <div>
-        <h2 className="text-3xl font-bold text-slate-900">Relatórios</h2>
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 print:mb-6">
+        <div>
+          <h2 className="text-3xl font-bold text-slate-900">Relatórios</h2>
 
-        <p className="mt-2 text-slate-600">
-          Visualize entradas, saídas e estoque atual por período.
-        </p>
+          <p className="mt-2 text-slate-600">
+            Visualize entradas, saídas e estoque atual por período.
+          </p>
 
-        <p className="mt-1 text-sm text-slate-500">
-          Empresa atual: {empresaAtiva?.nome}
-        </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Período analisado: {gerarTextoPeriodo()}
+          </p>
+        </div>
 
-        <p className="mt-1 text-sm text-slate-500">
-          Período analisado: {gerarTextoPeriodo()}
-        </p>
+        <button
+          onClick={imprimirRelatorio}
+          className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 print:hidden"
+        >
+          Imprimir relatório
+        </button>
       </div>
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
@@ -311,7 +319,7 @@ function Relatorios({ empresaAtiva }) {
         </div>
       </div>
 
-      <div className="mt-6 bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div className="mt-6 bg-white rounded-2xl shadow-sm overflow-hidden print:hidden">
         <div className="px-6 py-5 border-b border-slate-100">
           <h3 className="text-xl font-bold text-slate-900">
             Detalhamento por produto

@@ -249,9 +249,7 @@ function Produtos({ produtos, setProdutos, empresaAtiva, carregandoProdutos }) {
             Cadastre, edite e acompanhe o estoque dos produtos.
           </p>
 
-          <p className="mt-1 text-sm text-slate-500">
-            Empresa atual: {empresaAtiva?.nome}
-          </p>
+          
         </div>
 
         <button

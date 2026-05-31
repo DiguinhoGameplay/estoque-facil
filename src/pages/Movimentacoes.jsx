@@ -439,9 +439,7 @@ function Movimentacoes({
           Registre entradas e saídas de produtos no estoque.
         </p>
 
-        <p className="mt-1 text-sm text-slate-500">
-          Empresa atual: {empresaAtiva?.nome}
-        </p>
+        
       </div>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
